@@ -1,7 +1,15 @@
 """
-Key Vault (bóveda) model.
-Provee API controlada: write_slot, access_slot_for_operation.
-No expone lectura directa que pueda copiar llaves a registros/memoria.
+vault.py
+
+Implementación única y centralizada de la Bóveda (KeyVault).
+Responsabilidades:
+ - Almacenar slots definidos en isa_definition.VAULT_SLOTS como valores UInt64.
+ - Proveer acceso controlado y atómico a las llaves via access_slot_for_operation.
+ - Generar firmas atómicas con generate_signature sin exponer la llave.
+Seguridad:
+ - Sólo operaciones autorizadas (KVL, KVOP, SGEN) pueden acceder a los slots.
+ - dump_vault() está protegido por un flag 'authorized' y retorna enteros
+   (o None) para facilitar logging/depuración.
 """
 from typing import Dict
 from isa_types import UInt64, Vec4x64
@@ -69,12 +77,11 @@ class KeyVault:
 
     def dump_vault(self, authorized: bool = False):
         """
-        Método de depuración: muestra estado de la bóveda solo si está autorizado.
-        Devuelve mapa slot -> int (o None).
+        Mostrar estado de la bóveda para depuración.
+        - authorized: True obliga a la llamada a tener permiso explícito.
+        - Retorna { slot_name: int | None }
         """
         if not authorized:
             raise VaultAccessError("Dump de bóveda requiere autorización")
         # devolver enteros para facilidad de impresión/serialización
         return {k: (int(v) if v is not None else None) for k, v in self._slots.items()}
-        raise VaultAccessError("Dump de bóveda requiere autorización")
-        return dict(self._slots)

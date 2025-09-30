@@ -1,3 +1,16 @@
+"""
+isa_types.py
+
+Tipos básicos usados en el proyecto:
+ - UInt64: entero sin signo de 64 bits (subclase de int) que aplica máscara.
+ - Vec4x64: contenedor de 4 UInt64 (estado de hash A,B,C,D).
+Detalles:
+ - Vec4x64 acepta constructor flexible:
+    * Vec4x64(a,b,c,d)
+    * Vec4x64(iterable_of_4)
+ - Las operaciones retornan instancias de estos tipos para consistencia.
+"""
+
 class UInt64(int):
     """
     Tipo entero sin signo de 64 bits.
@@ -51,7 +64,8 @@ class Vec4x64:
 
     def xor_with_key(self, key):
         """
-        Aplica XOR entre cada componente y una llave UInt64.
-        Retorna nuevo Vec4x64.
+        XOR entre cada componente y la llave dada.
+        - key puede ser UInt64 o entero.
+        - Retorna un nuevo Vec4x64.
         """
         return Vec4x64(*(UInt64(int(v) ^ int(UInt64(key))) for v in self.values))

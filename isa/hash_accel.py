@@ -1,10 +1,14 @@
 """
-Aceleradores de hash (implementaciones de referencia, simples).
-Funciones:
- - mixmul(a, b): mezcla y multiplica dos UInt64
- - modadd(a, b): suma modular usando PRIMO_MOD de TOYMDMA
- - nonlin(x): función no-lineal de mezcla
- - apply_block(state, block): aplica un bloque de 64 bits al estado Vec4x64 (actualiza A,B,C,D)
+hash_accel.py
+
+Implementaciones de referencia para operaciones de mezcla/hash (ToyMDMA).
+Aviso: son funciones de referencia y NO deben considerarse seguras
+cryptográficamente; sirven para pruebas e integración del pipeline.
+Funciones principales:
+ - mixmul(a, b): mezcla y multiplica (trunca a 64 bits)
+ - modadd(a, b): suma con reducción modular usando PRIMO_MOD por defecto
+ - nonlin(x): función no lineal determinista
+ - apply_block(state, block): aplica un bloque sobre Vec4x64
 """
 from isa_types import UInt64, Vec4x64
 from isa_definition import TOYMDMA_CONSTANTS
@@ -33,10 +37,10 @@ def nonlin(x: int) -> UInt64:
 
 def apply_block(state: Vec4x64, block: int) -> Vec4x64:
     """
-    Aplicación simplificada de un bloque ToyMDMA sobre el estado.
+    Aplica un bloque al estado hash.
     - state: Vec4x64 (A,B,C,D)
     - block: 64-bit integer (mensaje)
-    Retorna nuevo Vec4x64 actualizado.
+    Devuelve un nuevo Vec4x64 con las actualizaciones.
     """
     A = state[0]
     B = state[1]

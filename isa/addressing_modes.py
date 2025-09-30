@@ -1,4 +1,14 @@
-# addressing_modes.py
+"""
+addressing_modes.py
+
+Funciones helper para calcular direcciones según los modos soportados por la ISA.
+Expectativas importantes:
+ - 'registers' es el objeto de banco de registros (register_file) y debe proveer
+   read(name) retornando un entero o UInt64 convertible a int().
+ - Las funciones retornan UInt64 (o int-convertible) representando la dirección.
+ - validate_address acepta una dirección (UInt64 o int) y opcionalmente un
+   rango de la bóveda para verificar accesos prohibidos.
+"""
 
 from isa_types import UInt64
 
@@ -38,8 +48,12 @@ def mode_IMM_LONG(imm):
 def validate_address(address, vault_range=None):
     """
     Valida que la dirección no acceda a zonas restringidas como la bóveda.
+    - address: puede ser UInt64 o int; se convierte internamente a int().
+    - vault_range: tupla (start, end) si se quiere bloquear un rango.
+    Lanza PermissionError si la dirección cae dentro del rango prohibido.
     """
-    if vault_range and vault_range[0] <= address <= vault_range[1]:
+    addr = int(address)
+    if vault_range and vault_range[0] <= addr <= vault_range[1]:
         raise PermissionError(
             "Acceso ilegal a bóveda mediante direccionamiento")
     return True

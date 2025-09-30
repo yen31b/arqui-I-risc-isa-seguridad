@@ -1,12 +1,12 @@
-# keyvault.py
 """
-Key Vault (bóveda) model.
-Provee API controlada: write_slot, access_slot_for_operation, generate_signature.
+keyvault.py
+
+Compatibilidad histórica: reexporta KeyVault desde isa.vault para mantener
+compatibilidad con módulos/scrips que importaban 'keyvault'.
+No contiene implementación propia, sólo alias.
 """
 
-from typing import Dict
-from isa_definition import VAULT_SLOTS
-
+from isa.vault import *
 # Tipos mínimos
 UInt64 = int
 

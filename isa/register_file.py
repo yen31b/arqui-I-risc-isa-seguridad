@@ -1,3 +1,16 @@
+"""
+register_file.py
+
+Banco de registros para la CPU Toy:
+ - 32 registros generales nombrados 'R0'..'R31'
+ - Registros especiales: PC, SR
+ - Todos los valores se almacenan como UInt64 (máscara automática aplicable).
+Notas de diseño:
+ - La implementación actual permite escribir en R0 para mantener compatibilidad
+   con tests y herramientas de desarrollo. En una ISA real R0 sería invariantes.
+ - dump_registers() devuelve un diccionario de enteros (útil para tests y logs).
+"""
+
 from isa_types import UInt64
 from isa_definition import REGISTERS_DECISION
 
@@ -37,7 +50,11 @@ class register_file:
     def write(self, name, value):
         """
         Escribe un valor en el registro especificado.
-        Aplica máscara de ancho definido y guarda como UInt64.
+        - Aplica máscara definida por REGISTERS_DECISION.
+        - Convierte y almacena como UInt64.
+        - Nota: por compatibilidad con pruebas actuales, no se bloquea la escritura
+          sobre el zero_register; si se desea cambiar esto a futuro, se puede
+          elevar una excepción aquí.
         """
         ival = int(value) & self._mask  # aplica máscara basada en la decisión global
 
@@ -55,13 +72,12 @@ class register_file:
 
     def dump_registers(self):
         """
-        Retorna un diccionario con el estado actual de todos los registros
-        (en lugar de imprimir directamente, es más reutilizable).
+        Retorna un diccionario con el estado actual de todos los registros.
+        Formato:
+            { 'R0': int, 'R1': int, ..., 'PC': int, 'SR': int }
+        Útil para serializar/depurar sin imprimir directamente.
         """
         result = {name: int(self.general[name]) for name in sorted(self.general.keys())}
-        result['PC'] = int(self.PC)
-        result['SR'] = int(self.SR)
-        return result
         result['PC'] = int(self.PC)
         result['SR'] = int(self.SR)
         return result
