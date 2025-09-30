@@ -1,4 +1,4 @@
-#CPU y definición de isa
+# CPU y definición de isa
 
 cd .../arqui-I-risc-isa-seguridad
 
@@ -20,7 +20,8 @@ arqui-I-risc-isa-seguridad/
 
     └── ...
 
-##Testing
+## Testing
+
 Desde la raiz del proyecto ejecutar los scripts para el testeo:
 python tests/test2_isa_types.py
 
