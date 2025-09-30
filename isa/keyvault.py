@@ -6,7 +6,7 @@ compatibilidad con módulos/scrips que importaban 'keyvault'.
 No contiene implementación propia, sólo alias.
 """
 
-from isa.vault import *
+from vault import *
 # Tipos mínimos
 UInt64 = int
 
