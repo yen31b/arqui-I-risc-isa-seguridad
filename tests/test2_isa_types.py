@@ -1,12 +1,12 @@
 # test2_isa_types.py
 # Test para isa_types en cohesion con register_file
 
-from register_file import RegisterFile
-from isa_types import UInt64, Vec4x64
+from isa.register_file import register_file
+from isa.isa_types import UInt64, Vec4x64
 
 
 def test_write_and_read():
-    rf = RegisterFile()
+    rf = register_file()
     rf.write('R1', UInt64(0x123456789ABCDEF0))
     result = rf.read('R1')
     expected = 0x123456789ABCDEF0
@@ -15,7 +15,7 @@ def test_write_and_read():
 
 
 def test_masking():
-    rf = RegisterFile()
+    rf = register_file()
     rf.write('R2', UInt64(0x1FFFFFFFFFFFFFFFF))
     result = rf.read('R2')
     expected = 0xFFFFFFFFFFFFFFFF
@@ -24,7 +24,7 @@ def test_masking():
 
 
 def test_vec4x64_xor():
-    rf = RegisterFile()
+    rf = register_file()
     state = Vec4x64(0xA, 0xB, 0xC, 0xD)
     key = UInt64(0xFF00FF00FF00FF00)
     signed = state.xor_with_key(key)
@@ -39,7 +39,7 @@ def test_vec4x64_xor():
 
 
 def test_invalid_register():
-    rf = RegisterFile()
+    rf = register_file()
     try:
         rf.write('R32', 0x1)
         print("test_invalid_register: FAILED (no exception)")
