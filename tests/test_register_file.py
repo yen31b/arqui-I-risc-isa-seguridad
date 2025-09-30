@@ -1,3 +1,6 @@
+# test_register_file.py
+# Test para register_file
+
 import unittest
 from register_file import register_file
 
