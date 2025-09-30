@@ -1,4 +1,3 @@
-
 class UInt64(int):
     """
     Tipo entero sin signo de 64 bits.
@@ -18,8 +17,24 @@ class Vec4x64:
     Usado para representar el estado hash ToyMDMA: (A, B, C, D).
     """
 
-    def __init__(self, a, b, c, d):
-        self.values = [UInt64(a), UInt64(b), UInt64(c), UInt64(d)]
+    def __init__(self, a, b=None, c=None, d=None):
+        """
+        Constructor flexible:
+        - Vec4x64(a, b, c, d)
+        - Vec4x64(iterable_of_4)
+        """
+        # Caso iterable único (p.ej. Vec4x64([a,b,c,d]) o Vec4x64((a,b,c,d)))
+        if b is None and c is None and d is None:
+            try:
+                vals = list(a)
+            except TypeError:
+                raise TypeError("Vec4x64 requires either four positional values or a single iterable of length 4")
+            if len(vals) != 4:
+                raise TypeError("Iterable passed to Vec4x64 must have exactly 4 elements")
+            self.values = [UInt64(v) for v in vals]
+        else:
+            # Caso cuatro argumentos posicionales
+            self.values = [UInt64(a), UInt64(b), UInt64(c), UInt64(d)]
 
     def __getitem__(self, index):
         return self.values[index]
@@ -39,4 +54,4 @@ class Vec4x64:
         Aplica XOR entre cada componente y una llave UInt64.
         Retorna nuevo Vec4x64.
         """
-        return Vec4x64(*(v ^ UInt64(key) for v in self.values))
+        return Vec4x64(*(UInt64(int(v) ^ int(UInt64(key))) for v in self.values))

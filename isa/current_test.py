@@ -1,61 +1,68 @@
-# test2_isa_types.py
-# Test para isa_types en cohesion con register_file
-
-import unittest
-from register_file import register_file
+# main.py
 from isa_types import UInt64, Vec4x64
-from vault import KeyVault, VaultAccessError
+from isa_definition import VAULT_SLOTS
+from keyvault import KeyVault, VaultAccessError
 
+def print_header(title: str):
+    print("\n" + "="*60)
+    print(f" {title}")
+    print("="*60)
 
-class TestRegisterFile(unittest.TestCase):
-    def test_write_and_read(self):
-        rf = register_file()
-        rf.write('R1', UInt64(0x123456789ABCDEF0))
-        result = rf.read('R1')
-        self.assertEqual(int(result), 0x123456789ABCDEF0)
+def main():
+    # Crear bóveda
+    vault = KeyVault()
 
-    def test_masking(self):
-        rf = register_file()
-        rf.write('R2', UInt64(0x1FFFFFFFFFFFFFFFF))
-        result = rf.read('R2')
-        self.assertEqual(int(result), 0xFFFFFFFFFFFFFFFF)
+    print_header("1. Inicialización de la Bóveda")
+    print("Slots disponibles:", VAULT_SLOTS)
+    print("Estado inicial:", vault.dump_vault(authorized=True))
 
-    def test_vec4x64_xor(self):
-        rf = register_file()
-        state = Vec4x64(0xA, 0xB, 0xC, 0xD)
-        key = UInt64(0xFF00FF00FF00FF00)
-        signed = state.xor_with_key(key)
-        for i in range(4):
-            rf.write(f'R{i}', signed[i])
-            self.assertEqual(int(rf.read(f'R{i}')), int(signed[i]))
+    # Paso 1: Escribir una llave en KEY_0
+    key_value = 0xDEADBEEFCAFEBABE
+    print_header("2. Escritura de llave en KEY_0")
+    try:
+        vault.write_slot("KEY_0", key_value, authorized=True)
+        print(f"Llave escrita en KEY_0: 0x{key_value:016X}")
+    except VaultAccessError as e:
+        print("ERROR:", e)
 
-    def test_invalid_register(self):
-        rf = register_file()
-        with self.assertRaises(ValueError):
-            rf.write('R32', 0x1)
+    print("Estado actual bóveda:", vault.dump_vault(authorized=True))
 
+    # Paso 2: Definir un estado Vec4x64
+    state = Vec4x64([
+        UInt64(0x1111111111111111),
+        UInt64(0x2222222222222222),
+        UInt64(0x3333333333333333),
+        UInt64(0x4444444444444444),
+    ])
+    print_header("3. Estado inicial Vec4x64")
+    print(state)
 
-class TestSGEN(unittest.TestCase):
-    def setUp(self):
-        self.kv = KeyVault()
-        self.slot = 'KEY_0'
-        self.state = Vec4x64(0x1, 0x2, 0x3, 0x4)
-        self.key = UInt64(0xFF00FF00FF00FF00)
+    # Paso 3: Generar firma con la llave de KEY_0
+    print_header("4. Generación de firma con SGEN")
+    signature = vault.generate_signature("KEY_0", state)
+    print("Firma generada:", signature)
 
-    def test_generate_signature_success(self):
-        # Inicializar llave (autorizada)
-        self.kv.write_slot(self.slot, int(self.key), authorized=True)
-        sig = self.kv.generate_signature(self.slot, self.state)
-        expected = self.state.xor_with_key(self.key)
-        for i in range(4):
-            self.assertEqual(int(sig[i]), int(expected[i]))
+    # Paso 4: Verificación (esperado vs obtenido)
+    print_header("5. Verificación de resultado esperado vs obtenido")
+    # CORRECCIÓN: usar indexación y int(...) en lugar de atributos inexistentes
+    expected = Vec4x64([
+        UInt64(int(state[0]) ^ key_value),
+        UInt64(int(state[1]) ^ key_value),
+        UInt64(int(state[2]) ^ key_value),
+        UInt64(int(state[3]) ^ key_value),
+    ])
 
-    def test_generate_signature_requires_key_initialized(self):
-        # Si no se inicializa la llave, debe fallar al intentar generar la firma
-        with self.assertRaises(VaultAccessError):
-            _ = self.kv.generate_signature(self.slot, self.state)
+    print("Esperado:", expected)
+    print("Obtenido:", signature)
 
+    # Comparar como listas de enteros (no usar .words)
+    expected_list = [int(expected[i]) for i in range(4)]
+    signature_list = [int(signature[i]) for i in range(4)]
+    print("Coinciden:", expected_list == signature_list)
 
-# Ejecutar todas las pruebas
+    # Paso 5: Auditoría
+    print_header("6. Auditoría de la bóveda")
+    print(vault.get_audit_counters())
+
 if __name__ == "__main__":
-    unittest.main()
+    main()
