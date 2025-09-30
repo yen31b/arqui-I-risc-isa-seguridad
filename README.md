@@ -1,10 +1,8 @@
 # CPU y definición de isa
 
-cd .../arqui-I-risc-isa-seguridad
+## arqui-I-risc-isa-seguridad/
 
-arqui-I-risc-isa-seguridad/
-
-└── isa/
+### └── isa/
 
     └── current_test.py  
 
@@ -12,7 +10,7 @@ arqui-I-risc-isa-seguridad/
 
     └── register_file.py
 
-└── tests/
+### └── tests/
 
     └── ...
 
@@ -20,7 +18,7 @@ arqui-I-risc-isa-seguridad/
 
     └── ...
 
-## Testing
+ Testing
 
 Desde la raiz del proyecto ejecutar los scripts para el testeo:
 python tests/test2_isa_types.py
