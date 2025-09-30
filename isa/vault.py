@@ -12,13 +12,13 @@ class VaultAccessError(Exception):
 
 class KeyVault:
     def __init__(self):
-        # Inicializar todos los slots a None
-        self._slots: Dict[str, int] = {name: None for name in VAULT_SLOTS.keys()}
+        # Inicializar todos los slots como None
+        self._slots: Dict[str, UInt64] = {name: None for name in VAULT_SLOTS.keys()}
         # Contadores de auditoría
         self._counters = {'reads': 0, 'writes': 0, 'ops': 0}
 
     def _mask64(self, v):
-        return UInt64(v & 0xFFFFFFFFFFFFFFFF)
+        return UInt64(int(v) & 0xFFFFFFFFFFFFFFFF)
 
     def write_slot(self, slot_name: str, value: int, authorized: bool = False):
         """
@@ -34,7 +34,7 @@ class KeyVault:
         self._slots[slot_name] = self._mask64(value)
         self._counters['writes'] += 1
 
-    def access_slot_for_operation(self, slot_name: str, operation: str):
+    def access_slot_for_operation(self, slot_name: str, operation: str) -> UInt64:
         """
         Acceso controlado a un slot para operaciones permitidas (KVL, KVOP, SGEN).
         Retorna el valor UInt64 para uso interno en la operación atómica.
@@ -50,21 +50,18 @@ class KeyVault:
         if operation not in allowed_ops:
             raise VaultAccessError(f"Operación '{operation}' no permitida para leer bóveda")
 
-        # No se debe permitir que el llamador extraiga y guarde la llave en registro/memoria.
-        # Aquí retornamos el valor para que la unidad funcional lo use atómicamente.
+        # Incrementar contadores y devolver el UInt64 interno (uso atómico simulado)
         self._counters['reads'] += 1
         self._counters['ops'] += 1
         return self._slots[slot_name]
 
-    def generate_signature(self, slot_name: str, state: Vec4x64):
+    def generate_signature(self, slot_name: str, state: Vec4x64) -> Vec4x64:
         """
-        Genera la firma S = (A XOR K, B XOR K, C XOR K, D XOR K) usando la llave
-        almacenada en slot_name. La llave no se devuelve ni se expone; la operación
-        se realiza de forma atómica dentro de la bóveda (simulado).
+        Genera la firma S = state XOR K usando la llave almacenada en slot_name.
+        La llave no se expone; se pasa como UInt64 a la función de la unidad funcional.
         """
-        # acceso controlado al slot para la operación atómica SGEN
         key = self.access_slot_for_operation(slot_name, 'SGEN')
-        # state.xor_with_key retorna un Vec4x64 nuevo sin exponer la llave
+        # state.xor_with_key acepta UInt64/int y devuelve Vec4x64
         return state.xor_with_key(key)
 
     def get_audit_counters(self):
@@ -73,8 +70,11 @@ class KeyVault:
     def dump_vault(self, authorized: bool = False):
         """
         Método de depuración: muestra estado de la bóveda solo si está autorizado.
-        No usar en ejecución normal.
+        Devuelve mapa slot -> int (o None).
         """
         if not authorized:
             raise VaultAccessError("Dump de bóveda requiere autorización")
+        # devolver enteros para facilidad de impresión/serialización
+        return {k: (int(v) if v is not None else None) for k, v in self._slots.items()}
+        raise VaultAccessError("Dump de bóveda requiere autorización")
         return dict(self._slots)
