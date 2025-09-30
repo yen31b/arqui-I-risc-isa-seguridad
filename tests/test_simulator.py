@@ -5,7 +5,7 @@ from isa_types import UInt64
 
 
 def test_addi():
-    rf = register_file()
+    rf = RegisterFile()
     rf.write('R2', UInt64(0x100))
     instr = encode_instruction(
         'I_TYPE', opcode=OPCODES['ADDI'], rd=1, rs1=2, imm=0x20)
@@ -17,7 +17,7 @@ def test_addi():
 
 
 def test_load():
-    rf = register_file()
+    rf = RegisterFile()
     rf.write('R3', UInt64(0x200))
     MEMORY[0x220] = UInt64(0xDEADBEEFCAFEBABE)
     instr = encode_instruction(
@@ -30,7 +30,7 @@ def test_load():
 
 
 def test_store():
-    rf = register_file()
+    rf = RegisterFile()
     rf.write('R5', UInt64(0x300))
     rf.write('R6', UInt64(0x40))
     rf.write('R5', UInt64(0xBEEF1234567890AB))  # Valor a almacenar
