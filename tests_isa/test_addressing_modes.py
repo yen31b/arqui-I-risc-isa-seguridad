@@ -3,7 +3,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(
     os.path.dirname(__file__), '..', 'isa')))
 
-from register_file import RegisterFile
+from register_file import register_file
 from isa_types import UInt64
 from addressing_modes import (
     mode_REG, mode_REG_IMM, mode_BASE_DISP, mode_IMM_LONG,
@@ -12,7 +12,7 @@ from addressing_modes import (
 
 
 def test_mode_REG():
-    rf = RegisterFile()
+    rf = register_file()
     rf.write('R1', UInt64(0x1000))
     result = mode_REG(rf, 'R1')
     print("test_mode_REG:", "PASSED" if result ==
@@ -20,7 +20,7 @@ def test_mode_REG():
 
 
 def test_mode_REG_IMM():
-    rf = RegisterFile()
+    rf = register_file()
     rf.write('R2', UInt64(0x2000))
     result = mode_REG_IMM(rf, 'R2', 0x30)
     expected = 0x2030
@@ -29,7 +29,7 @@ def test_mode_REG_IMM():
 
 
 def test_mode_BASE_DISP():
-    rf = RegisterFile()
+    rf = register_file()
     rf.write('R3', UInt64(0x3000))
     rf.write('R4', UInt64(0x40))
     result = mode_BASE_DISP(rf, 'R3', 'R4')
