@@ -1,7 +1,13 @@
+
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(
+    os.path.dirname(__file__), '..', 'isa')))
+
 import unittest
-from isa.hash_accel import mixmul, modadd, nonlin, apply_block
-from isa.isa_definition import TOYMDMA_CONSTANTS
-from isa.isa_types import Vec4x64, UInt64
+from hash_accel import mixmul, modadd, nonlin, apply_block
+from isa_definition import TOYMDMA_CONSTANTS
+from isa_types import Vec4x64, UInt64
 
 MASK64 = 0xFFFFFFFFFFFFFFFF
 

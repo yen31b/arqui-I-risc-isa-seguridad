@@ -1,6 +1,12 @@
 # test_register_file.py
 # Test para register_file
 
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(
+    os.path.dirname(__file__), '..', 'isa')))
+
+
 import unittest
 from register_file import register_file
 

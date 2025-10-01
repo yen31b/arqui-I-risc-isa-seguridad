@@ -1,5 +1,10 @@
 # test_decode_stage.py
 
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(
+    os.path.dirname(__file__), '..', 'pipeline')))
+
 from decode_stage import DecodeStage
 from register_file import register_file
 from isa_definition import encode_instruction

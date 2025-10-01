@@ -1,3 +1,8 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(
+    os.path.dirname(__file__), '..', 'isa')))
+
 from register_file import RegisterFile
 from isa_types import UInt64
 from addressing_modes import (

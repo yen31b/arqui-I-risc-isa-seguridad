@@ -1,8 +1,13 @@
 # test2_isa_types.py
 # Test para isa_types en cohesion con register_file
 
-from isa.register_file import register_file
-from isa.isa_types import UInt64, Vec4x64
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(
+    os.path.dirname(__file__), '..', 'isa')))
+
+from register_file import register_file
+from isa_types import UInt64, Vec4x64
 
 
 def test_write_and_read():

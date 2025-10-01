@@ -1,3 +1,9 @@
+
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(
+    os.path.dirname(__file__), '..', 'isa')))
+
 from simulator_core import execute_instruction, MEMORY
 from isa_definition import encode_instruction, OPCODES
 from register_file import register_file

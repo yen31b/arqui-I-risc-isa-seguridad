@@ -1,6 +1,12 @@
+
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(
+    os.path.dirname(__file__), '..', 'isa')))
+
 import unittest
-from isa.vault import KeyVault, VaultAccessError
-from isa.isa_types import Vec4x64, UInt64
+from vault import KeyVault, VaultAccessError
+from isa_types import Vec4x64, UInt64
 
 class TestSGEN(unittest.TestCase):
     def setUp(self):
