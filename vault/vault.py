@@ -11,6 +11,10 @@ Seguridad:
  - dump_vault() está protegido por un flag 'authorized' y retorna enteros
    (o None) para facilitar logging/depuración.
 """
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
+
 from typing import Dict
 from isa_types import UInt64, Vec4x64
 from isa_definition import VAULT_SLOTS

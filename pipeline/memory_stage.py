@@ -10,21 +10,14 @@ Responsabilidad:
 """
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', 'isa')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
 
-from isa_types import UInt64
-from vault import KeyVault, VaultAccessError
+from isa_types import UInt64, Vec4x64
 
 class DataMemory:
     def __init__(self, size=1024, vault_range=(0x1000, 0x1FFF)):
-        """
-        size: tamaño en bytes de memoria general
-        vault_range: rango de direcciones reservado para bóveda (start, end)
-        """
         self.memory = {}
         self.vault_range = vault_range
-        self.vault = KeyVault()
         self.metrics = {
             'mem_accesses': 0,
             'vault_accesses': 0,
@@ -40,33 +33,19 @@ class DataMemory:
         return True
     
     def read(self, address):
-        """Lee de memoria general"""
+        """Lee de memoria general - CORREGIDO"""
         self.metrics['mem_accesses'] += 1
         self.validate_memory_access(address)
-        return self.memory.get(address, UInt64(0))
+        addr_int = int(address)
+        return UInt64(self.memory.get(addr_int, 0))
     
     def write(self, address, value):
-        """Escribe en memoria general"""
+        """Escribe en memoria general - CORREGIDO"""
         self.metrics['mem_accesses'] += 1
         self.validate_memory_access(address)
-        self.memory[address] = UInt64(value)
-    
-    def vault_operation(self, operation, slot_name, value=None, state=None):
-        """Operaciones seguras con la bóveda"""
-        self.metrics['vault_accesses'] += 1
-        try:
-            if operation == 'KVW':  # Key Vault Write
-                self.vault.write_slot(slot_name, value, authorized=True)
-                return None
-            elif operation == 'KVL':  # Key Vault Load
-                return self.vault.access_slot_for_operation(slot_name, 'KVL')
-            elif operation == 'KVOP':  # Key Vault Operation
-                return self.vault.access_slot_for_operation(slot_name, 'KVOP')
-            elif operation == 'SGEN':  # Signature Generation
-                return self.vault.generate_signature(slot_name, state)
-        except VaultAccessError as e:
-            self.metrics['security_blocks'] += 1
-            raise e
+        addr_int = int(address)
+        val_int = int(value) if hasattr(value, 'value') else int(value)
+        self.memory[addr_int] = val_int
     
     def get_metrics(self):
         return dict(self.metrics)
@@ -78,51 +57,40 @@ class MemoryStage:
     
     def execute(self, ex_result, decoded_instr):
         """
-        Ejecuta etapa MEM
-        ex_result: resultado de etapa EX
-        decoded_instr: instrucción decodificada
+        Ejecuta etapa MEM - CORREGIDO
         """
         result = None
         latency = 1
         
         opcode = decoded_instr['opcode_name']
-        ops = decoded_instr['operandos']
+        ops = decoded_instr.get('operandos', {})  # CORRECCIÓN: usar get() para evitar KeyError
         ctrl = decoded_instr['control_signals']
         
-        if ctrl['use_boveda']:
-            # Operaciones con bóveda
-            slot_name = self._get_slot_name(ops.get('vault_idx'))
-            if opcode == 'VSTORE':
-                value = ops.get('rs1_val', 0)
-                self.mem.vault_operation('KVW', slot_name, value=value)
-                result = None
-            elif opcode == 'VINIT':
-                key = ops.get('rs1_val', 0)
-                self.mem.vault_operation('KVW', slot_name, value=key)
-                result = None
-            elif opcode == 'SIGN':
-                state = ops.get('hash_state')
-                if state:
-                    signature = self.mem.vault_operation('SGEN', slot_name, state=state)
-                    result = signature
-                    latency = 3  # Operación criptográfica más lenta
-            else:
-                # KVL, KVOP
-                result = self.mem.vault_operation('KVL', slot_name)
-                latency = 2
+        print(f"  🔧 MEM: Opcode {opcode}, operandos: {list(ops.keys())}")
         
-        elif opcode == 'LOAD':
+        # Caso: operaciones con memoria
+        if opcode == 'LOAD':
             # Acceso a memoria general
-            address = ex_result.get('memory_address', 0)
+            address = ex_result.get('result', 0)
             result = self.mem.read(address)
-        
+            latency = ex_result.get('latency', 1) + 1
+            print(f"  🔧 MEM: LOAD desde 0x{int(address):x} = 0x{int(result):x}")
+            
         elif opcode == 'STORE':
             # Escritura a memoria general
-            address = ex_result.get('memory_address', 0)
-            value = ops.get('rs1_val', 0)
+            address = ex_result.get('result', 0)
+            value = ops.get('rs2_val', 0)  # CORRECCIÓN: en STORE, el valor está en rs2
             self.mem.write(address, value)
             result = None
-        
+            latency = ex_result.get('latency', 1) + 1
+            print(f"  🔧 MEM: STORE 0x{int(value):x} en 0x{int(address):x}")
+
+        else:
+            # Instrucciones ALU / no-mem: propagar resultado de EX a WB
+            result = ex_result.get('result')
+            latency = ex_result.get('latency', 1)
+            print(f"  🔧 MEM: Propagando resultado de EX: {result}")
+
         self.metrics['operations'] += 1
         self.metrics['cycles'] += latency
         
@@ -130,16 +98,8 @@ class MemoryStage:
             'result': result,
             'latency': latency,
             'memory_accessed': opcode in ['LOAD', 'STORE'],
-            'vault_accessed': ctrl['use_boveda']
+            'vault_accessed': ctrl.get('use_boveda', False)
         }
-    
-    def _get_slot_name(self, vault_idx):
-        """Convierte índice de bóveda a nombre de slot"""
-        slots = ['KEY_0', 'KEY_1', 'KEY_2', 'KEY_3', 
-                'HASH_A', 'HASH_B', 'HASH_C', 'HASH_D']
-        if 0 <= vault_idx < len(slots):
-            return slots[vault_idx]
-        raise ValueError(f"Índice de bóveda inválido: {vault_idx}")
     
     def get_metrics(self):
         mem_metrics = self.mem.get_metrics()

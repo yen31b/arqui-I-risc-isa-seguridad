@@ -145,19 +145,26 @@ TOYMDMA_CONSTANTS = {
 # =============================================================================
 
 
+# En isa_definition.py - mejorar get_field_value
+
 def get_field_value(instruction, field_name, format_type):
-    """Extrae el valor de un campo de una instrucción"""
+    """Extrae el valor de un campo de una instrucción - MEJORADO"""
     if format_type not in INST_FORMATS:
         raise ValueError(f"Formato no válido: {format_type}")
 
     fields = INST_FORMATS[format_type]['fields']
     if field_name not in fields:
-        raise ValueError(f"Campo no válido: {field_name}")
+        raise ValueError(f"Campo no válido: {field_name} para formato {format_type}")
 
     start, end = fields[field_name]
-    mask = ((1 << (start - end + 1)) - 1) << end
-    return (instruction & mask) >> end
-
+    field_width = start - end + 1
+    mask = ((1 << field_width) - 1) << end
+    value = (instruction & mask) >> end
+    
+    # Debug opcional
+    # print(f"  📐 Extrayendo {field_name}: bits [{start}:{end}], valor={value}")
+    
+    return value
 
 def encode_instruction(format_type, **fields):
     """Codifica una instrucción a partir de los campos"""

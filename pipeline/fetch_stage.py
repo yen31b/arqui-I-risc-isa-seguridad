@@ -9,8 +9,7 @@ Responsabilidad:
 """
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', 'isa')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
 
 from isa_definition import INSTRUCTION_FORMAT_DECISION
 from register_file import register_file

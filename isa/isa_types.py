@@ -23,6 +23,20 @@ class UInt64(int):
     def __repr__(self):
         return f"UInt64(0x{self:016X})"
 
+    # Operaciones auxiliares útiles en varios stages
+    def rotl(self, shift):
+        """Rotate left over 64 bits."""
+        s = int(shift) & 63
+        val = (int(self) << s) & 0xFFFFFFFFFFFFFFFF
+        val |= (int(self) >> (64 - s))
+        return UInt64(val & 0xFFFFFFFFFFFFFFFF)
+
+    def rotr(self, shift):
+        """Rotate right over 64 bits."""
+        s = int(shift) & 63
+        val = (int(self) >> s) | ((int(self) << (64 - s)) & 0xFFFFFFFFFFFFFFFF)
+        return UInt64(val & 0xFFFFFFFFFFFFFFFF)
+
 
 class Vec4x64:
     """
