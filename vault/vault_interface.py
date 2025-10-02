@@ -81,12 +81,15 @@ class VaultInterface:
             raise e
     
     def _index_to_slot(self, index):
-        """Convierte índice numérico a nombre de slot"""
+        """Convierte índice numérico a nombre de slot - VERSIÓN CORREGIDA"""
         slots = ['KEY_0', 'KEY_1', 'KEY_2', 'KEY_3', 
                 'HASH_A', 'HASH_B', 'HASH_C', 'HASH_D']
-        if index is not None and 0 <= index < len(slots):
-            return slots[index]
-        raise ValueError(f"Índice de bóveda inválido: {index}")
+        
+        # Validar que el índice esté en rango
+        if index is None or index < 0 or index >= len(slots):
+            raise ValueError(f"Índice de bóveda inválido: {index}")
+        
+        return slots[index]
     
     def get_security_report(self):
         """Reporte de seguridad y métricas"""
