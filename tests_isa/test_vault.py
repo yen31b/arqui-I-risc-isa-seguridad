@@ -461,36 +461,47 @@ class ComprehensiveVaultTest:
             print("🔍 Testing Manejo de Errores...")
             interface = VaultInterface()
             
-            # Test índice inválido - usar índice REALMENTE inválido
+            initial_violations = interface.get_security_report()['security_violations']
+            violations_count = 0
+            
+            # Test índice inválido
             try:
                 interface.execute_vault_operation('KVL', 15)  # Índice fuera de rango
                 print("    ❌ Debería haber fallado con índice inválido")
                 return False
-            except (ValueError, VaultAccessError):
-                print("    ✅ Índice inválido detectado correctamente")
+            except (ValueError, VaultAccessError) as e:
+                print(f"    ✅ Índice inválido detectado: {e}")
+                violations_count += 1
             
             # Test operación no soportada
             try:
                 interface.execute_vault_operation('OPERACION_INVALIDA', 0)
                 print("    ❌ Debería haber fallado con operación no soportada")
                 return False
-            except ValueError:
-                print("    ✅ Operación no soportada detectada correctamente")
+            except ValueError as e:
+                print(f"    ✅ Operación no soportada detectada: {e}")
+                violations_count += 1
             
             # Test estado inválido para firma
             try:
                 interface.execute_vault_operation('SGEN', 0, state="invalid_state")
                 print("    ❌ Debería haber fallado con estado inválido")
                 return False
-            except (ValueError, TypeError):
-                print("    ✅ Estado inválido detectado correctamente")
+            except (ValueError, TypeError, VaultAccessError) as e:
+                print(f"    ✅ Estado inválido detectado: {e}")
+                violations_count += 1
             
             # Verificar que se incrementaron las violaciones de seguridad
-            report = interface.get_security_report()
-            if report['security_violations'] == 0:
-                print("    ❌ Violaciones de seguridad no contadas")
+            final_report = interface.get_security_report()
+            expected_violations = initial_violations + violations_count
+            
+            print(f"  Violaciones esperadas: {expected_violations}, actuales: {final_report['security_violations']}")
+            
+            if final_report['security_violations'] != expected_violations:
+                print(f"    ❌ Violaciones de seguridad no contadas correctamente: {final_report['security_violations']} != {expected_violations}")
                 return False
             
+            print(f"    ✅ Todas las violaciones contadas correctamente")
             return True
 
         # Ejecutar tests de interfaz
@@ -614,17 +625,23 @@ class ComprehensiveVaultTest:
             initial_report = interface.get_security_report()
             initial_violations = initial_report['security_violations']
             
+            print(f"  Violaciones iniciales: {initial_violations}")
+            
             # Provocar una violación de seguridad con índice REALMENTE inválido
             try:
                 # Usar índice fuera del rango de slots (8 slots = índices 0-7)
                 interface.execute_vault_operation('KVL', 15)  # Índice 15 no existe
-            except (ValueError, VaultAccessError):
-                pass  # Esperado - cualquier error de seguridad cuenta
+                print("    ❌ Debería haber lanzado excepción")
+                return False
+            except (ValueError, VaultAccessError) as e:
+                print(f"    ✅ Excepción capturada correctamente: {e}")
             
             # Verificar que se incrementó el contador
             final_report = interface.get_security_report()
+            print(f"  Violaciones finales: {final_report['security_violations']}")
+            
             if final_report['security_violations'] <= initial_violations:
-                print(f"    ❌ Violación de seguridad no registrada: {final_report['security_violations']}")
+                print(f"    ❌ Violación de seguridad no registrada: {final_report['security_violations']} (inicial: {initial_violations})")
                 return False
             
             print(f"    ✅ Violación de seguridad registrada: {final_report['security_violations']}")

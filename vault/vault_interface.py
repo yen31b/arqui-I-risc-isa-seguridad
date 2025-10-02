@@ -45,7 +45,7 @@ class VaultInterface:
     
     def execute_vault_operation(self, operation, slot_idx, **kwargs):
         """
-        Ejecuta operación atómica con la bóveda
+        Ejecuta operación atómica con la bóveda - VERSIÓN CORREGIDA
         """
         try:
             slot_name = self._index_to_slot(slot_idx)
@@ -76,9 +76,16 @@ class VaultInterface:
             
             return result
             
-        except VaultAccessError as e:
+        except Exception as e:
+            # CONTAR CUALQUIER EXCEPCIÓN como violación de seguridad
             self.security_metrics['security_violations'] += 1
-            raise e
+            
+            # Relanzar la excepción original
+            if isinstance(e, (VaultAccessError, ValueError)):
+                raise e
+            else:
+                # Para otros tipos de errores, envolver en VaultAccessError
+                raise VaultAccessError(f"Error en operación de bóveda: {e}")
     
     def _index_to_slot(self, index):
         """Convierte índice numérico a nombre de slot - VERSIÓN CORREGIDA"""
