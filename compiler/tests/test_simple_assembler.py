@@ -1,15 +1,8 @@
-import sys
 import textwrap
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-from simple_assembler import Assembler, AssemblyError  # noqa: E402
-from simple_assembler.cli import format_words  # noqa: E402
+from compiler.simple_assembler import Assembler, AssemblyError
+from compiler.simple_assembler.cli import format_words
 
 
 class SimpleAssemblerTestCase(unittest.TestCase):
