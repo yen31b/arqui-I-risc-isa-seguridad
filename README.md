@@ -1,26 +1,99 @@
-# CPU y definición de isa
+# 🟩 Instruction Reference Sheet (Green Card)
 
-## arqui-I-risc-isa-seguridad/
+## 📌 Registros
+- **32 registros generales de 64 bits**: `R0`–`R31`
+- **R0**: siempre 0 (convención)
+- **SP (R29)**: Stack Pointer  
+- **FP (R30)**: Frame Pointer  
+- **RA (R31)**: Return Address  
+- **PC, SR**: registros especiales (Program Counter, Status Register)
 
-### └── isa/
+---
 
-    └── current_test.py  
+## 📌 Formatos de instrucción (32 bits)
 
-    └── isa_types.py
+- **R-TYPE**: `opcode (6) | rd (5) | rs1 (5) | rs2 (5) | funct (11)`
+- **I-TYPE**: `opcode (6) | rd (5) | rs1 (5) | imm (16)`
+- **S-TYPE**: `opcode (6) | rs1 (5) | rs2 (5) | imm (16)`
+- **V-TYPE**: `opcode (6) | vault_idx (5) | rs1 (5) | funct (16)`
+- **H-TYPE**: `opcode (6) | rs1 (5) | funct (21)`
 
-    └── register_file.py
+---
 
-### └── tests/
+## 📌 Instrucciones principales
 
-    └── ...
+| Instrucción | Formato | Sintaxis | Descripción |
+|-------------|---------|----------|-------------|
+| **ADD**     | R | `ADD rd, rs1, rs2` | Suma: `rd = rs1 + rs2` |
+| **SUB**     | R | `SUB rd, rs1, rs2` | Resta |
+| **XOR**     | R | `XOR rd, rs1, rs2` | XOR bit a bit |
+| **ADDI**    | I | `ADDI rd, rs1, imm` | Suma inmediata |
+| **LOAD**    | I | `LOAD rd, offset(rs1)` | Carga desde memoria |
+| **STORE**   | S | `STORE rs2, offset(rs1)` | Guarda en memoria |
+| **LOADI**   | I | `LOADI rd, imm` | Carga inmediato largo (constantes) |
+| **JUMP**    | I | `JUMP imm` | Salto incondicional |
+| **BEQ**     | I | `BEQ rs1, rs2, imm` | Salto si igual |
+| **BNE**     | I | `BNE rs1, rs2, imm` | Salto si distinto |
 
-    └── test2_isa_types.py
+---
 
-    └── ...
+## 📌 Instrucciones de bóveda
 
-# Testing
+| Instrucción | Sintaxis | Descripción |
+|-------------|----------|-------------|
+| **VSTORE**  | `VSTORE vault_idx, rs1` | Guarda valor en bóveda |
+| **VINIT**   | `VINIT` | Inicializa valores de hash (A,B,C,D) desde bóveda |
+| **SIGN**    | `SIGN rd, vault_idx` | Firma hash con llave privada en bóveda |
+| **VERIFY**  | `VERIFY rd, vault_idx` | Verifica firma usando llave en bóveda |
 
-Desde la raiz del proyecto ejecutar los scripts para el testeo:
-python tests/test2_isa_types.py
+🔒 **Reglas de seguridad**:
+- La bóveda no se puede leer como memoria normal.  
+- Llaves privadas nunca salen a registros ni memoria.  
+- Solo `SIGN` y `VERIFY` acceden a llaves.
 
-...o bien pegar el codigo del test a ejecutar en current_test.py
+---
+
+## 📌 Instrucciones de hash
+
+| Instrucción | Sintaxis | Descripción |
+|-------------|----------|-------------|
+| **HASH_INIT**  | `HASH_INIT` | Carga IVs (A,B,C,D) desde bóveda |
+| **HASH_BLOCK** | `HASH_BLOCK rs1` | Procesa bloque de 64 bits en `rs1` |
+| **HASH_FINAL** | `HASH_FINAL` | Exporta hash final (256 bits) a memoria |
+
+---
+
+## 📌 Instrucciones especiales
+
+| Instrucción | Sintaxis | Descripción |
+|-------------|----------|-------------|
+| **MUL**     | `MUL rd, rs1, rs2` | Multiplicación truncada a 64 bits |
+| **MOD**     | `MOD rd, rs1, rs2` | Reducción modular |
+| **MULMOD**  | `MULMOD rd, rs1, rs2` | `(rs1 * rs2) mod PRIME_MOD` |
+| **ROTL**    | `ROTL rd, rs1, imm` | Rotación izquierda |
+| **ROTR**    | `ROTR rd, rs1, imm` | Rotación derecha |
+| **NONLIN**  | `NONLIN rd, rs1` | Función no lineal: `rotl(x,13) XOR (x*GOLDEN_RATIO)` |
+
+---
+
+## 📌 Constantes ToyMDMA
+
+- **GOLDEN_RATIO** = `0x9e3779b97f4a7c15`  
+- **PRIME_MOD** = `0xFFFFFFFB`  
+- **INITIAL_A** = `0x6A09E667F3BCC908`  
+- **INITIAL_B** = `0xBB67AE8584CAA73B`  
+- **INITIAL_C** = `0x3C6EF372FE94F82B`  
+- **INITIAL_D** = `0xA54FF53A5F1D36F1`
+
+---
+
+## 📌 Flujo típico de firma digital
+
+1. `HASH_INIT` → carga IVs desde bóveda.  
+2. `HASH_BLOCK` → procesa bloques de archivo.  
+3. `HASH_FINAL` → obtiene hash (A,B,C,D).  
+4. `SIGN` → combina hash con llave privada de bóveda.  
+5. Guardar archivo + firma.  
+6. `VERIFY` → recalcula hash y compara con firma.
+
+---
