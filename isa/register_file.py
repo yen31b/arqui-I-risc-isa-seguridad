@@ -1,16 +1,15 @@
+#register_file.py
 """
-register_file.py
-
 Banco de registros para la CPU Toy:
  - 32 registros generales nombrados 'R0'..'R31'
  - Registros especiales: PC, SR
  - Todos los valores se almacenan como UInt64 (máscara automática aplicable).
 Notas de diseño:
  - La implementación actual permite escribir en R0 para mantener compatibilidad
-   con tests y herramientas de desarrollo. En una ISA real R0 sería invariantes.
+   con tests y herramientas de desarrollo. En una ISA real R0 sería invariante.
  - dump_registers() devuelve un diccionario de enteros (útil para tests y logs).
 """
-
+import warnings
 from isa_types import UInt64
 from isa_definition import REGISTERS_DECISION
 
@@ -34,6 +33,15 @@ class register_file:
         self.PC = UInt64(0)  # Program Counter
         self.SR = UInt64(0)  # Status Register
 
+        # Métricas de seguridad
+        self.security_metrics = {
+            'vault_write_violations': 0,
+            'reserved_register_violations': 0
+        }
+
+        # Lista de nombres reservados (no deben usarse como registros normales)
+        self._reserved_prefixes = ['VAULT', 'KEY', 'HASH']
+
     def read(self, name):
         """
         Lee el valor de un registro por nombre; retorna UInt64.
@@ -56,8 +64,19 @@ class register_file:
           sobre el zero_register; si se desea cambiar esto a futuro, se puede
           elevar una excepción aquí.
         """
-        ival = int(value) & self._mask  # aplica máscara basada en la decisión global
+        # 1. Bloquear registros reservados
+        for prefix in self._reserved_prefixes:
+            if name.startswith(prefix):
+                self.security_metrics['reserved_register_violations'] += 1
+                raise PermissionError(f"Escritura prohibida en registro reservado: {name}")
 
+        # 2. Detectar si el valor proviene de la bóveda
+        # Heurística: si el valor es un dict con flag interno o un tipo especial
+        if hasattr(value, "_is_vault_secret") and getattr(value, "_is_vault_secret"):
+            self.security_metrics['vault_write_violations'] += 1
+            raise PermissionError(f"Intento de escribir valor de bóveda en {name}")
+
+        ival = int(value) & self._mask  # aplica máscara
         # Nota: se permite escribir en el zero register para mantener compatibilidad
         # con las pruebas existentes que esperan poder escribir/leer R0.
 
@@ -81,8 +100,14 @@ class register_file:
         result['PC'] = int(self.PC)
         result['SR'] = int(self.SR)
         return result
+    
+    def get_security_metrics(self):
+        """
+        Retorna métricas de seguridad relacionadas con intentos bloqueados.
+        """
+        return dict(self.security_metrics)
+
 
     @property
     def registers(self):
-        """Propiedad de conveniencia que retorna snapshot de registros (dump_registers)."""
         return self.dump_registers()
