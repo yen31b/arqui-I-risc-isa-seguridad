@@ -11,7 +11,7 @@ Expectativas importantes:
 """
 
 from isa_types import UInt64
-from isa_definition import VAULT_ADDR_RANGE  # rango centralizado de la bóveda
+
 
 # Métricas de seguridad locales
 security_metrics = {
@@ -22,6 +22,7 @@ def _validate_and_wrap(addr):
     """
     Helper interno: valida dirección contra la bóveda y retorna UInt64.
     """
+    from isa_definition import VAULT_ADDR_RANGE  # rango centralizado de la bóveda
     validate_address(addr, VAULT_ADDR_RANGE)
     return UInt64(addr)
 
@@ -70,7 +71,7 @@ def validate_address(address, vault_range=None):
     if vault_range and vault_range[0] <= addr <= vault_range[1]:
         security_metrics['vault_address_violations'] += 1
         raise PermissionError(
-            "Acceso ilegal a bóveda mediante direccionamiento: 0x{addr:016x}")
+            f"Acceso ilegal a bóveda mediante direccionamiento: 0x{addr:016x}")
     return True
 
 def describe_addressing(mode_name, **kwargs):

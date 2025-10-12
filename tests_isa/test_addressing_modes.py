@@ -14,9 +14,9 @@ from isa_definition import VAULT_ADDR_RANGE
 
 def test_mode_REG():
     rf = register_file()
-    rf.write('R1', UInt64(0x1000))
+    rf.write('R1', UInt64(0x5000))
     result = mode_REG(rf, 'R1')
-    print("test_mode_REG:", "PASSED" if result == 0x1000 else f"FAILED (got {result})")
+    print("test_mode_REG:", "PASSED" if result == 0x5000 else f"FAILED (got {result})")
 
 
 def test_mode_REG_IMM():
@@ -44,7 +44,7 @@ def test_mode_IMM_LONG():
 
 def test_validate_address_safe():
     try:
-        validate_address(0x1000, vault_range=VAULT_ADDR_RANGE)
+        validate_address(0x50000000, vault_range=VAULT_ADDR_RANGE)
         print("test_validate_address_safe: PASSED")
     except PermissionError:
         print("test_validate_address_safe: FAILED (unexpected rejection)")
