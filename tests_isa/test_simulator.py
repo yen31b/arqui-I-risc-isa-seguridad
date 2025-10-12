@@ -1,4 +1,3 @@
-
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(
@@ -18,8 +17,7 @@ def test_addi():
     execute_instruction(instr, rf)
     result = rf.read('R1')
     expected = 0x120
-    print("test_addi:", "PASSED" if result ==
-          expected else f"FAILED (got {result})")
+    print("test_addi:", "PASSED" if int(result) == expected else f"FAILED (got {result})")
 
 
 def test_load():
@@ -31,26 +29,24 @@ def test_load():
     execute_instruction(instr, rf)
     result = rf.read('R4')
     expected = 0xDEADBEEFCAFEBABE
-    print("test_load:", "PASSED" if result ==
-          expected else f"FAILED (got {result})")
-
+    print("test_load:", "PASSED" if int(result) == expected else f"FAILED (got {result})")
 
 def test_store():
     rf = register_file()
-    rf.write('R5', UInt64(0x300))
-    rf.write('R6', UInt64(0x40))
-    rf.write('R5', UInt64(0xBEEF1234567890AB))  # Valor a almacenar
+    rf.write('R5', UInt64(0x300))  # base
+    rf.write('R6', UInt64(0x20))   # desplazamiento
+    rf.write('R7', UInt64(0xBEEF1234567890AB))  # valor a almacenar
+
     instr = encode_instruction(
-        'S_TYPE', opcode=OPCODES['STORE'], rs1=5, rs2=6, imm=0x0)
+        'S_TYPE', opcode=OPCODES['STORE'], rs1=5, rs2=7, imm=0x0)
     execute_instruction(instr, rf)
-    addr = rf.read('R5') + rf.read('R6')
+
+    addr = int(rf.read('R5')) + int(rf.read('R6'))
     result = MEMORY.get(addr)
     expected = 0xBEEF1234567890AB
-    print("test_store:", "PASSED" if result ==
-          expected else f"FAILED (got {result})")
+    print("test_store:", "PASSED" if result and int(result) == expected else f"FAILED (got {result})")
 
 
-# Ejecutar todas las pruebas
 if __name__ == "__main__":
     test_addi()
     test_load()

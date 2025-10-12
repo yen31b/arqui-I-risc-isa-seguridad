@@ -6,13 +6,18 @@ Responsabilidad:
  - Coordinar operaciones atómicas con la bóveda
  - Generar señales de control de seguridad
  - Validar integridad de operaciones
+ - No exponer llaves en claro; operar mediante handles
 """
+
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
 
-from vault import KeyVault, VaultAccessError
+from typing import Optional, Dict, Any
+from vault import KeyVault, VaultAccessError, KeyHandle
 from isa_types import UInt64, Vec4x64
+from isa_definition import VAULT_SLOTS  # dict de nombres de slots canónicos
+
 
 class VaultInterface:
     def __init__(self):
@@ -22,8 +27,8 @@ class VaultInterface:
             'security_violations': 0,
             'atomic_operations': 0
         }
-    
-    def generate_control_signals(self, opcode, operands):
+
+    def generate_control_signals(self, opcode: str, operands: Dict[str, Any]) -> Dict[str, Any]:
         """
         Genera señales de control para operaciones con bóveda
         """
@@ -31,79 +36,106 @@ class VaultInterface:
             'vault_op': False,
             'needs_authorization': False,
             'atomic_operation': False,
-            'slot_index': None
+            'slot_index': None,
+            'slot_name': None
         }
-        
-        vault_ops = ['VSTORE', 'VINIT', 'SIGN', 'KVL', 'KVOP']
-        if opcode in vault_ops:
+
+        # Normalizar alias
+        op = opcode.upper()
+        if op in ('VSTORE', 'VINIT'):
+            op = 'KVW'
+        vault_ops = {'KVW', 'KVL', 'KVOP', 'SGEN'}
+
+        if op in vault_ops:
             signals['vault_op'] = True
-            signals['needs_authorization'] = True
-            signals['atomic_operation'] = opcode in ['SIGN', 'KVOP']
-            signals['slot_index'] = operands.get('vault_idx')
-        
+            signals['needs_authorization'] = (op == 'KVW')
+            signals['atomic_operation'] = (op in {'KVOP', 'SGEN'})
+            idx = operands.get('vault_idx')
+            signals['slot_index'] = idx
+            signals['slot_name'] = self._index_to_slot(idx)
+
         return signals
-    
-    def execute_vault_operation(self, operation, slot_idx, **kwargs):
+
+    def execute_vault_operation(self, operation: str, slot_idx: int, **kwargs):
         """
-        Ejecuta operación atómica con la bóveda - VERSIÓN CORREGIDA
+        Ejecuta operación con la bóveda usando handles seguros.
+        No expone llaves en claro.
         """
         try:
             slot_name = self._index_to_slot(slot_idx)
-            
-            if operation == 'KVW':
+            op = operation.upper()
+            if op in ('VSTORE', 'VINIT'):
+                op = 'KVW'
+
+            result = None
+
+            if op == 'KVW':
                 value = kwargs.get('value', 0)
                 self.vault.write_slot(slot_name, value, authorized=True)
-                result = None
-            
-            elif operation == 'KVL':
-                result = self.vault.access_slot_for_operation(slot_name, 'KVL')
-            
-            elif operation == 'KVOP':
-                result = self.vault.access_slot_for_operation(slot_name, 'KVOP')
-            
-            elif operation == 'SGEN':
+
+            elif op == 'KVL':
+                # Devuelve handle o ejecuta suboperación controlada
+                subop = kwargs.get('subop')
+                handle: KeyHandle = self.vault.get_handle(slot_name, 'KVL')
+                if subop == 'xor_scalar':
+                    scalar = kwargs.get('scalar', 0)
+                    result = handle.xor_scalar(scalar)
+                else:
+                    result = handle  # sólo para uso interno confiable
+
+            elif op == 'KVOP':
+                handle: KeyHandle = self.vault.get_handle(slot_name, 'KVOP')
+                action = kwargs.get('action')
+                if action == 'xor_scalar':
+                    scalar = kwargs.get('scalar', 0)
+                    result = handle.xor_scalar(scalar)
+                elif action == 'use_for_signature':
+                    state = kwargs.get('state')
+                    if not isinstance(state, Vec4x64):
+                        raise ValueError("Se requiere Vec4x64 para 'use_for_signature'")
+                    result = handle.use_for_signature(state)
+                else:
+                    result = handle
+
+            elif op == 'SGEN':
                 state = kwargs.get('state')
                 if not isinstance(state, Vec4x64):
                     raise ValueError("Se requiere Vec4x64 para generación de firma")
                 result = self.vault.generate_signature(slot_name, state)
-            
+
             else:
                 raise ValueError(f"Operación de bóveda no soportada: {operation}")
-            
+
+            # Métricas
             self.security_metrics['vault_ops'] += 1
-            if operation in ['SGEN', 'KVOP']:
+            if op in {'SGEN', 'KVOP'}:
                 self.security_metrics['atomic_operations'] += 1
-            
+
             return result
-            
-        except Exception as e:
-            # CONTAR CUALQUIER EXCEPCIÓN como violación de seguridad
+
+        except (VaultAccessError, ValueError) as e:
             self.security_metrics['security_violations'] += 1
-            
-            # Relanzar la excepción original
-            if isinstance(e, (VaultAccessError, ValueError)):
-                raise e
-            else:
-                # Para otros tipos de errores, envolver en VaultAccessError
-                raise VaultAccessError(f"Error en operación de bóveda: {e}")
-    
-    def _index_to_slot(self, index):
-        """Convierte índice numérico a nombre de slot - VERSIÓN CORREGIDA"""
-        slots = ['KEY_0', 'KEY_1', 'KEY_2', 'KEY_3', 
-                'HASH_A', 'HASH_B', 'HASH_C', 'HASH_D']
-        
-        # Validar que el índice esté en rango
+            raise e
+        except Exception as e:
+            self.security_metrics['security_violations'] += 1
+            raise VaultAccessError(f"Error en operación de bóveda: {e}")
+
+    def _index_to_slot(self, index: Optional[int]) -> str:
+        """
+        Convierte índice numérico a nombre de slot conforme a VAULT_SLOTS
+        """
+        slots = list(VAULT_SLOTS.keys())
         if index is None or index < 0 or index >= len(slots):
             raise ValueError(f"Índice de bóveda inválido: {index}")
-        
         return slots[index]
-    
-    def get_security_report(self):
+
+    def get_security_report(self) -> Dict[str, Any]:
         """Reporte de seguridad y métricas"""
         vault_counters = self.vault.get_audit_counters()
         return {
             **self.security_metrics,
             'vault_reads': vault_counters['reads'],
             'vault_writes': vault_counters['writes'],
-            'vault_operations': vault_counters['ops']
+            'vault_operations': vault_counters['ops'],
+            'vault_violations': vault_counters.get('violations', 0),
         }
