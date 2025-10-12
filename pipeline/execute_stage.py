@@ -110,6 +110,37 @@ class ExecuteStage:
             shift = imm % 64
             result = UInt64((a_val >> shift) | (a_val << (64 - shift)))
             print(f"  🔧 EX: ROTR {a_val} >> {shift} = {result}")
+
+        
+        # Mezclas no lineales personalizadas
+        elif opcode == 'CALC_F':
+            # f = (A & B) ^ (A & C)
+            A = a_val
+            B = b_val
+            C = self.rf.read("R10") # R10 = C
+            f = (A & B) ^ (A & C)
+            result = UInt64(f)
+            print(f"  🔧 EX: CALC_F = ({A} & {B}) ^ ({A} & {C}) = {f}")
+
+        elif opcode == 'CALC_G':
+            # g = (B & C) ^ (~B & D)
+            B = a_val
+            C = b_val
+            D = self.rf.read("R11")  # R11 = D
+            g = (B & C) ^ (~B & D)
+            result = UInt64(g)
+            print(f"  🔧 EX: CALC_G = ({B} & {C}) ^ (~{B} & {D}) = {g}")
+
+        elif opcode == 'CALC_H':
+            # h = A ^ B ^ C ^ D
+            A = a_val
+            B = b_val
+            C = self.rf.read("R10")  # R10 = C
+            D = self.rf.read("R11")  # R11 = D
+            h = A ^ B ^ C ^ D
+            result = UInt64(h)
+            print(f"  🔧 EX: CALC_H = {A} ^ {B} ^ {C} ^ {D} = {h}")
+
         
         else:
             # Para instrucciones no implementadas

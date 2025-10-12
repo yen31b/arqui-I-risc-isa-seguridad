@@ -73,6 +73,9 @@
 | **ROTL**    | `ROTL rd, rs1, imm` | Rotación izquierda |
 | **ROTR**    | `ROTR rd, rs1, imm` | Rotación derecha |
 | **NONLIN**  | `NONLIN rd, rs1` | Función no lineal: `rotl(x,13) XOR (x*GOLDEN_RATIO)` |
+| **CALC_F**  | `CALC_F rd, rs1, rs2` | `(rs1 & rs2) ^ (rs1 & C)` donde `C = R10` |
+| **CALC_G**  | `CALC_G rd, rs1, rs2` | `(rs1 & rs2) ^ (~rs1 & D)` donde `D = R11` |
+| **CALC_H**  | `CALC_H rd, rs1, rs2` | `rs1 ^ rs2 ^ C ^ D` donde `C = R10`, `D = R11` |
 
 ---
 

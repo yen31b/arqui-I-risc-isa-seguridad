@@ -64,6 +64,12 @@ OPCODES = {
     'HASH_BLOCK': 0b011001,
     'HASH_FINAL': 0b011010,
 
+    # Mezclas No Lineales
+    'CALC_F': 0b011110,
+    'CALC_G': 0b011111,
+    'CALC_H': 0b100110,
+
+
     # Operaciones de Firma Digital
     'SIGN':   0b011100,
     'VERIFY': 0b011101,
@@ -251,7 +257,9 @@ ADDRESSING_MODE_FORMAT_MAP = {
 # → MIXMUL: mezcla y multiplica
 # → MODADD: suma con módulo
 # → NONLIN: función no lineal
-HASH_INSTR_NAMES = ['MIXMUL', 'MODADD', 'NONLIN']
+#HASH_INSTR_NAMES = ['MIXMUL', 'MODADD', 'NONLIN']
+HASH_INSTR_NAMES = ['MIXMUL', 'MODADD', 'NONLIN', 'CALC_F', 'CALC_G', 'CALC_H']
+
 
 # Instrucciones de la bóveda (operan sin exponer llaves)
 # → KVW: guardar una llave en la bóveda
