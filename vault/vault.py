@@ -1,5 +1,5 @@
+#vault.py
 """
-vault.py
 
 Implementación única y centralizada de la Bóveda (KeyVault).
 Responsabilidades:

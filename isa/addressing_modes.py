@@ -1,6 +1,6 @@
-"""
-addressing_modes.py
+#addressing_modes.py
 
+"""
 Funciones helper para calcular direcciones según los modos soportados por la ISA.
 Expectativas importantes:
  - 'registers' es el objeto de banco de registros (register_file) y debe proveer
@@ -11,13 +11,27 @@ Expectativas importantes:
 """
 
 from isa_types import UInt64
+from isa_definition import VAULT_ADDR_RANGE  # rango centralizado de la bóveda
 
+# Métricas de seguridad locales
+security_metrics = {
+    'vault_address_violations': 0
+}
+
+def _validate_and_wrap(addr):
+    """
+    Helper interno: valida dirección contra la bóveda y retorna UInt64.
+    """
+    validate_address(addr, VAULT_ADDR_RANGE)
+    return UInt64(addr)
 
 def mode_REG(registers, rs1):
     """
     Modo REG: acceso directo al valor de un registro.
     """
-    return UInt64(registers.read(rs1))
+    #return UInt64(registers.read(rs1))
+    base = registers.read(rs1)
+    return _validate_and_wrap(base)
 
 
 def mode_REG_IMM(registers, rs1, imm):
@@ -26,8 +40,8 @@ def mode_REG_IMM(registers, rs1, imm):
     """
     base = registers.read(rs1)
     offset = imm & 0xFFFF  # 16 bits
-    return UInt64(base + offset)
-
+    #return UInt64(base + offset)
+    return _validate_and_wrap(base + offset)
 
 def mode_BASE_DISP(registers, base_reg, disp_reg):
     """
@@ -35,14 +49,14 @@ def mode_BASE_DISP(registers, base_reg, disp_reg):
     """
     base = registers.read(base_reg)
     disp = registers.read(disp_reg)
-    return UInt64(base + disp)
+    return _validate_and_wrap(base + disp)
 
 
 def mode_IMM_LONG(imm):
     """
     Modo IMM_LONG: uso directo de un valor inmediato largo.
     """
-    return UInt64(imm & 0xFFFFFFFFFFFFFFFF)  # 64 bits
+    return _validate_and_wrap(imm & 0xFFFFFFFFFFFFFFFF)  # 64 bits
 
 
 def validate_address(address, vault_range=None):
@@ -54,10 +68,10 @@ def validate_address(address, vault_range=None):
     """
     addr = int(address)
     if vault_range and vault_range[0] <= addr <= vault_range[1]:
+        security_metrics['vault_address_violations'] += 1
         raise PermissionError(
-            "Acceso ilegal a bóveda mediante direccionamiento")
+            "Acceso ilegal a bóveda mediante direccionamiento: 0x{addr:016x}")
     return True
-
 
 def describe_addressing(mode_name, **kwargs):
     """
@@ -73,3 +87,9 @@ def describe_addressing(mode_name, **kwargs):
         return f"{kwargs['imm']}"
     else:
         return "Modo desconocido"
+    
+def get_security_metrics():
+    """
+    Retorna métricas de seguridad acumuladas en addressing_modes.
+    """
+    return dict(security_metrics)

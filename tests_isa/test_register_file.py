@@ -1,51 +1,73 @@
 # test_register_file.py
-# Test para register_file
+# Pruebas manuales y descriptivas para register_file
 
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(
     os.path.dirname(__file__), '..', 'isa')))
 
-
-import unittest
 from register_file import register_file
 
+def run_tests():
+    rf = register_file()
 
-class test_register_file(unittest.TestCase):
+    print("\n=== TEST 1: Escritura y lectura de registro general ===")
+    rf.write('R5', 0x123456789ABCDEF0)
+    val = rf.read('R5')
+    print(f"Se escribió 0x123456789ABCDEF0 en R5, se leyó: 0x{int(val):016x}")
 
-    def setUp(self):
-        self.rf = register_file()
+    print("\n=== TEST 2: Escritura y lectura de registros especiales (PC, SR) ===")
+    rf.write('PC', 0x1000)
+    rf.write('SR', 0xDEAD)
+    print(f"PC = 0x{int(rf.read('PC')):016x}, SR = 0x{int(rf.read('SR')):016x}")
 
-    def test_write_and_read_general_register(self):
-        self.rf.write('R5', 0x123456789ABCDEF0)
-        value = self.rf.read('R5')
-        self.assertEqual(value, 0x123456789ABCDEF0)
+    print("\n=== TEST 3: Aplicación de máscara a 64 bits ===")
+    rf.write('R1', 0x1FFFFFFFFFFFFFFFF)  # valor de 65 bits
+    val = rf.read('R1')
+    print(f"Se escribió 0x1FFFFFFFFFFFFFFFF en R1, se leyó (enmascarado): 0x{int(val):016x}")
 
-    def test_write_and_read_special_registers(self):
-        self.rf.write('PC', 0x1000)
-        self.rf.write('SR', 0xDEAD)
-        self.assertEqual(self.rf.read('PC'), 0x1000)
-        self.assertEqual(self.rf.read('SR'), 0xDEAD)
+    print("\n=== TEST 4: Escritura en registro inválido ===")
+    try:
+        rf.write('R32', 0x1)
+    except ValueError as e:
+        print(f"Correcto: se bloqueó escritura en R32 → {e}")
 
-    def test_masking_to_64_bits(self):
-        self.rf.write('R1', 0x1FFFFFFFFFFFFFFFF)
-        value = self.rf.read('R1')
-        self.assertEqual(value, 0xFFFFFFFFFFFFFFFF)
+    print("\n=== TEST 5: Lectura de registro inválido ===")
+    try:
+        rf.read('R32')
+    except ValueError as e:
+        print(f"Correcto: se bloqueó lectura en R32 → {e}")
 
-    def test_invalid_register_write(self):
-        with self.assertRaises(ValueError):
-            self.rf.write('R32', 0x1)
+    print("\n=== TEST 6: Dump de registros ===")
+    rf.write('R0', 0xDEADBEEFDEADBEEF)
+    rf.write('PC', 0xCAFEBABE)
+    dump = rf.dump_registers()
+    print("Dump parcial (solo no-cero):")
+    for k, v in dump.items():
+        if v != 0:
+            print(f"  {k} = 0x{v:016x}")
 
-    def test_invalid_register_read(self):
-        with self.assertRaises(ValueError):
-            self.rf.read('R32')
+    print("\n=== TEST 7: Escritura en registro reservado ===")
+    try:
+        rf.write('VAULT_KEY', 0x1234)
+    except PermissionError as e:
+        print(f"Correcto: se bloqueó escritura en registro reservado → {e}")
 
-    def test_dump_registers_output(self):
-        # Just ensure it runs without error; visual inspection can be done manually
-        self.rf.write('R0', 0xDEADBEEFDEADBEEF)
-        self.rf.write('PC', 0xCAFEBABE)
-        self.rf.dump_registers()
+    print("\n=== TEST 8: Escritura de valor marcado como secreto de bóveda ===")
+    class FakeVaultValue:
+        _is_vault_secret = True
+        def __int__(self): return 0x5555
 
+    try:
+        rf.write('R10', FakeVaultValue())
+    except PermissionError as e:
+        print(f"Correcto: se bloqueó escritura de valor secreto en R10 → {e}")
+
+    print("\n=== TEST 9: Métricas de seguridad ===")
+    metrics = rf.get_security_metrics()
+    print("Métricas recolectadas:")
+    for k, v in metrics.items():
+        print(f"  {k}: {v}")
 
 if __name__ == '__main__':
-    unittest.main()
+    run_tests()

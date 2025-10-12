@@ -1,6 +1,6 @@
-"""
-isa_types.py
+#isa_types.py
 
+"""
 Tipos básicos usados en el proyecto:
  - UInt64: entero sin signo de 64 bits (subclase de int) que aplica máscara.
  - Vec4x64: contenedor de 4 UInt64 (estado de hash A,B,C,D).

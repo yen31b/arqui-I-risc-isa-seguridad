@@ -1,6 +1,6 @@
-"""
-hash_accel.py
+#hash_accel.py
 
+"""
 Implementaciones de referencia para operaciones de mezcla/hash (ToyMDMA).
 Aviso: son funciones de referencia y NO deben considerarse seguras
 cryptográficamente; sirven para pruebas e integración del pipeline.

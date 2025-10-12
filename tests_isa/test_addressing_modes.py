@@ -7,16 +7,16 @@ from register_file import register_file
 from isa_types import UInt64
 from addressing_modes import (
     mode_REG, mode_REG_IMM, mode_BASE_DISP, mode_IMM_LONG,
-    validate_address, describe_addressing
+    validate_address, describe_addressing, get_security_metrics
 )
+from isa_definition import VAULT_ADDR_RANGE
 
 
 def test_mode_REG():
     rf = register_file()
     rf.write('R1', UInt64(0x1000))
     result = mode_REG(rf, 'R1')
-    print("test_mode_REG:", "PASSED" if result ==
-          0x1000 else f"FAILED (got {result})")
+    print("test_mode_REG:", "PASSED" if result == 0x1000 else f"FAILED (got {result})")
 
 
 def test_mode_REG_IMM():
@@ -24,8 +24,7 @@ def test_mode_REG_IMM():
     rf.write('R2', UInt64(0x2000))
     result = mode_REG_IMM(rf, 'R2', 0x30)
     expected = 0x2030
-    print("test_mode_REG_IMM:", "PASSED" if result ==
-          expected else f"FAILED (got {result})")
+    print("test_mode_REG_IMM:", "PASSED" if result == expected else f"FAILED (got {result})")
 
 
 def test_mode_BASE_DISP():
@@ -34,20 +33,18 @@ def test_mode_BASE_DISP():
     rf.write('R4', UInt64(0x40))
     result = mode_BASE_DISP(rf, 'R3', 'R4')
     expected = 0x3040
-    print("test_mode_BASE_DISP:", "PASSED" if result ==
-          expected else f"FAILED (got {result})")
+    print("test_mode_BASE_DISP:", "PASSED" if result == expected else f"FAILED (got {result})")
 
 
 def test_mode_IMM_LONG():
     result = mode_IMM_LONG(0x5000000000000000)
     expected = 0x5000000000000000
-    print("test_mode_IMM_LONG:", "PASSED" if result ==
-          expected else f"FAILED (got {result})")
+    print("test_mode_IMM_LONG:", "PASSED" if result == expected else f"FAILED (got {result})")
 
 
 def test_validate_address_safe():
     try:
-        validate_address(0x1000, vault_range=(0x80000000, 0x800000FF))
+        validate_address(0x1000, vault_range=VAULT_ADDR_RANGE)
         print("test_validate_address_safe: PASSED")
     except PermissionError:
         print("test_validate_address_safe: FAILED (unexpected rejection)")
@@ -55,7 +52,10 @@ def test_validate_address_safe():
 
 def test_validate_address_blocked():
     try:
-        validate_address(0x80000010, vault_range=(0x80000000, 0x800000FF))
+        # Tomamos una dirección dentro del rango de bóveda
+        start, end = VAULT_ADDR_RANGE
+        blocked_addr = start + 1
+        validate_address(blocked_addr, vault_range=VAULT_ADDR_RANGE)
         print("test_validate_address_blocked: FAILED (should have raised)")
     except PermissionError:
         print("test_validate_address_blocked: PASSED")
@@ -73,6 +73,19 @@ def test_describe_addressing():
     print("  IMM_LONG  →", desc4)
 
 
+def test_vault_violation_metrics():
+    start, end = VAULT_ADDR_RANGE
+    rf = register_file()
+    rf.write('R5', UInt64(start))  # dirección dentro de la bóveda
+    try:
+        mode_REG(rf, 'R5')
+    except PermissionError:
+        print("test_vault_violation_metrics: acceso bloqueado correctamente")
+
+    metrics = get_security_metrics()
+    print("Métricas de seguridad:", metrics)
+
+
 # Ejecutar todas las pruebas
 if __name__ == "__main__":
     test_mode_REG()
@@ -82,3 +95,4 @@ if __name__ == "__main__":
     test_validate_address_safe()
     test_validate_address_blocked()
     test_describe_addressing()
+    test_vault_violation_metrics()
