@@ -114,6 +114,134 @@ class TestCalcInstructions(unittest.TestCase):
         result = self.exec_stage.execute(instr)['result']
         self.assertEqual(result, expected)
 
+    def test_update_a(self):
+        # A = rol64(A + f + mul, 7) + B
+        A = 0xAAAAAAAABBBBBBBB
+        f = 0xCCCCCCCCDDDDDDDD
+        mul = 0x1111111122222222
+        B = 0x3333333344444444
+
+        self.rf.write("R8", UInt64(A))   # A
+        self.rf.write("R15", UInt64(f))  # f
+        self.rf.write("R17", UInt64(mul))# mul
+        self.rf.write("R9", UInt64(B))   # B
+
+        # funct = (rs3 << 5) | rs4 → rs3 = R17, rs4 = R9
+        funct = (17 << 5) | 9
+
+        instr = {
+            'opcode_name': 'UPDATE_A',
+            'operandos': {
+                'rs1_val': self.rf.read("R8"),   # A
+                'rs2_val': self.rf.read("R15"),  # f
+                'funct': funct
+            },
+            'control_signals': {}
+        }
+
+        temp = (A + f + mul) & MASK64
+        rot = ((temp << 7) | (temp >> (64 - 7))) & MASK64
+        expected = (rot + B) & MASK64
+
+        result = self.exec_stage.execute(instr)['result']
+        self.assertEqual(int(result), expected)
+
+    def test_update_b(self):
+        # B = rol64(B + g + block, 11) + (C * 3)
+        B = 0xCCCCCCCCDDDDDDDD
+        g = 0xEEEEEEEEFFFFFFFF
+        block = 0xCAFEBABEDEADBEEF
+        C = 0x123456789ABCDEF0
+
+        self.rf.write("R9", UInt64(B))       # B
+        self.rf.write("R14", UInt64(g))      # g
+        self.rf.write("R3", UInt64(block))   # block
+        self.rf.write("R10", UInt64(C))      # C
+
+        funct = (3 << 5) | 10  # rs3 = R3, rs4 = R10
+
+        instr = {
+            'opcode_name': 'UPDATE_B',
+            'operandos': {
+                'rs1_val': self.rf.read("R9"),   # B
+                'rs2_val': self.rf.read("R14"),  # g
+                'funct': funct
+            },
+            'control_signals': {}
+        }
+
+        temp = (B + g + block) & MASK64
+        rot = ((temp << 11) | (temp >> (64 - 11))) & MASK64
+        expected = (rot + (C * 3)) & MASK64
+
+        result = self.exec_stage.execute(instr)['result']
+        self.assertEqual(int(result), expected)
+
+    def test_update_c(self):
+        # C = rol64(C + h + mul, 17) + (D % PRIME_MOD)
+        C = 0xEEEEEEEEFFFFFFFF
+        h = 0xAAAAAAAABBBBBBBB
+        mul = 0xCAFEBABEDEADBEEF
+        D = 0x123456789ABCDEF0
+        prime = TOYMDMA_CONSTANTS['PRIME_MOD']
+
+        self.rf.write("R10", UInt64(C))      # C
+        self.rf.write("R16", UInt64(h))      # h
+        self.rf.write("R17", UInt64(mul))    # mul
+        self.rf.write("R11", UInt64(D))      # D
+
+        funct = (17 << 5) | 11  # rs3 = R17, rs4 = R11
+
+        instr = {
+            'opcode_name': 'UPDATE_C',
+            'operandos': {
+                'rs1_val': self.rf.read("R10"),  # C
+                'rs2_val': self.rf.read("R16"),  # h
+                'funct': funct
+            },
+            'control_signals': {}
+        }
+
+        temp = (C + h + mul) & MASK64
+        rot = ((temp << 17) | (temp >> (64 - 17))) & MASK64
+        expected = (rot + (D % prime)) & MASK64
+
+        result = self.exec_stage.execute(instr)['result']
+        self.assertEqual(int(result), expected)
+
+    def test_update_d(self):
+        # D = rol64(D + A + block, 19) ^ (f * 5)
+        D = 0x123456789ABCDEF0
+        A = 0xAAAAAAAABBBBBBBB
+        block = 0xCAFEBABEDEADBEEF
+        f = 0xCCCCCCCCDDDDDDDD
+
+        self.rf.write("R11", UInt64(D))      # D
+        self.rf.write("R8", UInt64(A))       # A
+        self.rf.write("R3", UInt64(block))   # block
+        self.rf.write("R15", UInt64(f))      # f
+
+        funct = (3 << 5) | 15  # rs3 = R3, rs4 = R15
+
+        instr = {
+            'opcode_name': 'UPDATE_D',
+            'operandos': {
+                'rs1_val': self.rf.read("R11"),  # D
+                'rs2_val': self.rf.read("R8"),   # A
+                'funct': funct
+            },
+            'control_signals': {}
+        }
+
+        temp = (D + A + block) & MASK64
+        rot = ((temp << 19) | (temp >> (64 - 19))) & MASK64
+        expected = (rot ^ (f * 5)) & MASK64
+
+        result = self.exec_stage.execute(instr)['result']
+        self.assertEqual(int(result), expected)
+
+
+
 
 
 if __name__ == '__main__':

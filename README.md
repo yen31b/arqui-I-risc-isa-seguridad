@@ -76,6 +76,11 @@
 | **CALC_F**  | `CALC_F rd, rs1, rs2` | `(rs1 & rs2) ^ (rs1 & C)` donde `C = R10` |
 | **CALC_G**  | `CALC_G rd, rs1, rs2` | `(rs1 & rs2) ^ (~rs1 & D)` donde `D = R11` |
 | **CALC_H**  | `CALC_H rd, rs1, rs2` | `rs1 ^ rs2 ^ C ^ D` donde `C = R10`, `D = R11` |
+| **UPDATE_A** | `UPDATE_A rd, rs1, rs2, rs3, rs4` | `rd = rol64(rs1 + rs2 + rs3, 7) + rs4`<br>→ A = rol64(A + f + mul, 7) + B |
+| **UPDATE_B** | `UPDATE_B rd, rs1, rs2, rs3, rs4` | `rd = rol64(rs1 + rs2 + rs3, 11) + (rs4 * 3)`<br>→ B = rol64(B + g + block, 11) + (C * 3) |
+| **UPDATE_C** | `UPDATE_C rd, rs1, rs2, rs3, rs4` | `rd = rol64(rs1 + rs2 + rs3, 17) + (rs4 % PRIME_MOD)`<br>→ C = rol64(C + h + mul, 17) + (D % PRIME_MOD) |
+| **UPDATE_D** | `UPDATE_D rd, rs1, rs2, rs3, rs4` | `rd = rol64(rs1 + rs2 + rs3, 19) ^ (rs4 * 5)`<br>→ D = rol64(D + A + block, 19) ^ (f * 5) |
+
 
 ---
 

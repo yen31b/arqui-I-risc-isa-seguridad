@@ -141,6 +141,78 @@ class ExecuteStage:
             result = UInt64(h)
             print(f"  🔧 EX: CALC_H = {A} ^ {B} ^ {C} ^ {D} = {h}")
 
+
+        elif opcode == 'UPDATE_A':
+            # Extraer rs3 y rs4 desde funct
+            funct_val = ops.get('funct', 0)
+            rs3_idx = (funct_val >> 5) & 0b11111
+            rs4_idx = funct_val & 0b11111
+            rs3_val = self.rf.read(f"R{rs3_idx}")
+            rs4_val = self.rf.read(f"R{rs4_idx}")
+
+            A = a_val
+            f = b_val
+            mul = int(rs3_val)
+            B = int(rs4_val)
+
+            temp = (A + f + mul) & 0xFFFFFFFFFFFFFFFF
+            rot = ((temp << 7) | (temp >> (64 - 7))) & 0xFFFFFFFFFFFFFFFF
+            result = UInt64(rot + B)
+            print(f"  🔧 EX: UPDATE_A = rol64({A} + {f} + {mul}, 7) + {B} = {result}")
+
+        elif opcode == 'UPDATE_B':
+            funct_val = ops.get('funct', 0)
+            rs3_idx = (funct_val >> 5) & 0b11111
+            rs4_idx = funct_val & 0b11111
+            rs3_val = self.rf.read(f"R{rs3_idx}")
+            rs4_val = self.rf.read(f"R{rs4_idx}")
+
+            B = a_val
+            g = b_val
+            block = int(rs3_val)
+            C = int(rs4_val)
+
+            temp = (B + g + block) & 0xFFFFFFFFFFFFFFFF
+            rot = ((temp << 11) | (temp >> (64 - 11))) & 0xFFFFFFFFFFFFFFFF
+            result = UInt64(rot + (C * 3))
+            print(f"  🔧 EX: UPDATE_B = rol64({B} + {g} + {block}, 11) + ({C} * 3) = {result}")
+
+        elif opcode == 'UPDATE_C':
+            funct_val = ops.get('funct', 0)
+            rs3_idx = (funct_val >> 5) & 0b11111
+            rs4_idx = funct_val & 0b11111
+            rs3_val = self.rf.read(f"R{rs3_idx}")
+            rs4_val = self.rf.read(f"R{rs4_idx}")
+
+            C = a_val
+            h = b_val
+            mul = int(rs3_val)
+            D = int(rs4_val)
+            prime = TOYMDMA_CONSTANTS.get('PRIME_MOD', 0xFFFFFFFFFFFFFFFF)
+
+            temp = (C + h + mul) & 0xFFFFFFFFFFFFFFFF
+            rot = ((temp << 17) | (temp >> (64 - 17))) & 0xFFFFFFFFFFFFFFFF
+            result = UInt64(rot + (D % prime))
+            print(f"  🔧 EX: UPDATE_C = rol64({C} + {h} + {mul}, 17) + ({D} % {prime}) = {result}")
+
+        elif opcode == 'UPDATE_D':
+            funct_val = ops.get('funct', 0)
+            rs3_idx = (funct_val >> 5) & 0b11111
+            rs4_idx = funct_val & 0b11111
+            rs3_val = self.rf.read(f"R{rs3_idx}")
+            rs4_val = self.rf.read(f"R{rs4_idx}")
+
+            D = a_val
+            A = b_val
+            block = int(rs3_val)
+            f = int(rs4_val)
+
+            temp = (D + A + block) & 0xFFFFFFFFFFFFFFFF
+            rot = ((temp << 19) | (temp >> (64 - 19))) & 0xFFFFFFFFFFFFFFFF
+            result = UInt64(rot ^ (f * 5))
+            print(f"  🔧 EX: UPDATE_D = rol64({D} + {A} + {block}, 19) ^ ({f} * 5) = {result}")
+
+
         
         else:
             # Para instrucciones no implementadas

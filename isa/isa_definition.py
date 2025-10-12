@@ -69,7 +69,6 @@ OPCODES = {
     'CALC_G': 0b011111,
     'CALC_H': 0b100110,
 
-
     # Operaciones de Firma Digital
     'SIGN':   0b011100,
     'VERIFY': 0b011101,
@@ -82,6 +81,12 @@ OPCODES = {
     # Operaciones de Rotación/Desplazamiento
     'ROTL':   0b100100,  # Rotate Left
     'ROTR':   0b100101,  # Rotate Right
+
+    #Calcular abcd directamente
+    'UPDATE_A': 0x3A,
+    'UPDATE_B': 0x3B,
+    'UPDATE_C': 0x3C,
+    'UPDATE_D': 0x3D,
 }
 
 # =============================================================================
@@ -258,8 +263,12 @@ ADDRESSING_MODE_FORMAT_MAP = {
 # → MODADD: suma con módulo
 # → NONLIN: función no lineal
 #HASH_INSTR_NAMES = ['MIXMUL', 'MODADD', 'NONLIN']
-HASH_INSTR_NAMES = ['MIXMUL', 'MODADD', 'NONLIN', 'CALC_F', 'CALC_G', 'CALC_H']
-
+#HASH_INSTR_NAMES = ['MIXMUL', 'MODADD', 'NONLIN', 'CALC_F', 'CALC_G', 'CALC_H']
+HASH_INSTR_NAMES = [
+    'MIXMUL', 'MODADD', 'NONLIN',
+    'CALC_F', 'CALC_G', 'CALC_H',
+    'UPDATE_A', 'UPDATE_B', 'UPDATE_C', 'UPDATE_D'
+]
 
 # Instrucciones de la bóveda (operan sin exponer llaves)
 # → KVW: guardar una llave en la bóveda
