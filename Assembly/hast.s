@@ -19,21 +19,26 @@ LOADI R31, 0xFFFFFFFFFFFFFFFF // R31 = MÁSCARA CONSTANTE (0xFF...FF)
 // 2. Mezcla No Lineal (f, g, h)
 
 // Calcular f = (A & B) | (~A & C) -> R15 = f
-AND R15, R8, R9              // R15 = A & B
-XOR R18, R8, R31             // R18 = ~A
-AND R19, R18, R10             // R19 = ~A & C
-OR R15, R15, R19             // R15 = f
+//AND R15, R8, R9              // R15 = A & B
+//XOR R18, R8, R31             // R18 = ~A
+//AND R19, R18, R10             // R19 = ~A & C
+//OR R15, R15, R19             // R15 = f
 
 // Calcular g = (B & C) | (~B & D) -> R14 = g
-AND R14, R9, R10              // R14 = B & C
-XOR R18, R9, R31             // R18 = ~B
-AND R19, R18, R11             // R19 = ~B & D
-OR R14, R14, R19             // R14 = g
+//AND R14, R9, R10              // R14 = B & C
+//XOR R18, R9, R31             // R18 = ~B
+//AND R19, R18, R11             // R19 = ~B & D
+//OR R14, R14, R19             // R14 = g
 
 // Calcular h = A ^ B ^ C ^ D -> R16 = h
-XOR R16, R8, R9              // R16 = A ^ B
-XOR R16, R16, R10             // R16 = A ^ B ^ C
-XOR R16, R16, R11             // R16 = h
+//XOR R16, R8, R9              // R16 = A ^ B
+//XOR R16, R16, R10             // R16 = A ^ B ^ C
+//XOR R16, R16, R11             // R16 = h
+
+CALC_F R15, R8, R9          // R15 = f = (A & B) ^ (A & C), usa R10 como C
+CALC_G R14, R9, R10         // R14 = g = (B & C) ^ (~B & D), usa R11 como D
+CALC_H R16, R8, R9          // R16 = h = A ^ B ^ C ^ D, usa R10 y R11 como C, D
+
 
 // 3. Paso de Multiplicación-Mezcla
 // mul = (block * GOLDEN_RATIO) & 0xFF...FF -> R17 = mul
@@ -76,4 +81,5 @@ STORE R10, R6                 // *c = C_nuevo
 STORE R11, R7                 // *d = D_nuevo
 
 // Exporta el estado final
+
 hash_final
