@@ -81,6 +81,8 @@ class register_file:
         result['PC'] = int(self.PC)
         result['SR'] = int(self.SR)
         return result
-@property
-def registers(self):
-    return self.dump_registers()
+
+    @property
+    def registers(self):
+        """Propiedad de conveniencia que retorna snapshot de registros (dump_registers)."""
+        return self.dump_registers()

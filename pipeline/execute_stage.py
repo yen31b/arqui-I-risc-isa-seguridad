@@ -10,18 +10,21 @@ Responsabilidad:
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vault')))
+from vault_interface import VaultInterface
 from isa_types import UInt64, Vec4x64
 from hash_accel import mixmul, modadd, nonlin
 from isa_definition import TOYMDMA_CONSTANTS
 
 class ExecuteStage:
-    def __init__(self):
+    def __init__(self, vault_if: VaultInterface | None = None):
         self.metrics = {
             'exec_count': 0,
             'cycles': 0,
             'op_latency': {},
         }
+        # Interfaz a la bóveda (puede ser None en tests unitarios simples)
+        self.vault_if = vault_if
 
     def execute(self, decoded_instr):
         """
@@ -48,11 +51,59 @@ class ExecuteStage:
         
         print(f"  🔧 EX: a_val={a_val}, b_val={b_val}, imm={imm}")
 
-        # Ejecutar operación
+       # Si la instrucción requiere acceso a la bóveda, delegar
         vault_signal = None
+        if ctrl.get('use_boveda', False):
+            if not self.vault_if:
+                raise RuntimeError("VaultInterface no configurada en ExecuteStage para instrucción de bóveda")
+
+            slot_idx = ops.get('vault_idx')
+            # Normalizar nombres: aceptar tanto VSTORE/KVW como KVL/VLOAD/SGEN...
+            try:
+                if opcode in ('KVW', 'VSTORE'):
+                    # escribir slot: valor provisto en rs1_val o imm
+                    value = ops.get('rs1_val', ops.get('value', 0))
+                    self.vault_if.execute_vault_operation('KVW', slot_idx, value=value)
+                    result = None
+                    latency = 5
+
+                elif opcode in ('KVL', 'VLOAD'):
+                    # leer slot (operación controlada)
+                    result = self.vault_if.execute_vault_operation('KVL', slot_idx)
+                    latency = 3
+
+                elif opcode == 'KVOP':
+                    # operación específica sobre slot (parámetros libres según diseño)
+                    result = self.vault_if.execute_vault_operation('KVOP', slot_idx, op=ops.get('funct'), value=ops.get('rs1_val'))
+                    latency = 6
+
+                elif opcode in ('SGEN', 'SIGN'):
+                    # generar firma: se espera `hash_state` o un Vec4x64 en ops
+                    state = ops.get('hash_state') or ops.get('rs1_val')
+                    result = self.vault_if.execute_vault_operation('SGEN', slot_idx, state=state)
+                    latency = 8
+
+                elif opcode == 'VINIT':
+                    # Inicializar slot con valor inmediato o rs1_val (autorizado)
+                    value = ops.get('rs1_val', ops.get('imm', 0))
+                    self.vault_if.execute_vault_operation('KVW', slot_idx, value=value)
+                    result = None
+                    latency = 5
+
+                else:
+                    # fallback: delegar con el nombre de opcode
+                    result = self.vault_if.execute_vault_operation(opcode, slot_idx, value=ops.get('rs1_val'))
+                    latency = 4
+
+                vault_signal = True
+                print(f"  🔧 EX: Bóveda {opcode} slot={slot_idx} result={result}")
+
+            except Exception as e:
+                # propagar excepción para que el pipeline gestione la falla
+                raise
         
         # Operaciones aritméticas básicas - CORREGIDAS
-        if opcode == 'ADD':
+        elif opcode == 'ADD':
             result = UInt64(a_val + b_val)
             print(f"  🔧 EX: ADD {a_val} + {b_val} = {result}")
             
@@ -215,9 +266,7 @@ class ExecuteStage:
 
         
         else:
-            # Para instrucciones no implementadas
-            result = UInt64(0)
-            print(f"  ⚠️  EX: Opcode {opcode} no implementado, retornando 0")
+            pass
 
         # Actualizar métricas
         self.metrics['exec_count'] += 1

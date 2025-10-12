@@ -276,6 +276,28 @@ HASH_INSTR_NAMES = [
 # → KVOP: operar con una llave dentro de la bóveda sin sacarla
 VAULT_INSTR_NAMES = ['KVW', 'KVL', 'KVOP']
 
+# =============================================================================
+# CONSTANTES PARA BÓVEDA (centralizadas)
+# =============================================================================
+
+# Lista canonical de instrucciones que acceden la bóveda
+VAULT_INSTR_NAMES = {
+    'VSTORE', 'VINIT', 'VLOAD', 'SIGN', 'VERIFY',
+    'KVL', 'KVOP', 'KVW', 'SGEN'
+}
+
+# Decisiones/flags de seguridad relacionadas con acceso a la bóveda.
+# Se puede ampliar con más claves (p.ej. políticas de autorización, latencias)
+VAULT_SECURITY_DECISION = {
+    'protect_slots_from_memory': True,   # las llaves no deben ser volcaras a memoria general
+    'require_authorization_for_write': True,
+    'allowed_ops': VAULT_INSTR_NAMES
+}
+
+# Rango de direcciones reservado para la bóveda (contrato global)
+# Las etapas deben usar este rango para bloquear accesos por LOAD/STORE
+VAULT_ADDR_RANGE = (0x1000, 0x1FFF)
+
 # Instrucción de firma
 # → SGEN: genera una firma combinando el estado hash (A,B,C,D) con una llave de la bóveda
 SIGN_INSTR_NAME = 'SGEN'

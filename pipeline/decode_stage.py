@@ -11,7 +11,8 @@ from isa_definition import (
     get_field_value,
     INST_FORMATS,
     OPCODES,
-    INSTRUCTION_ADDRESSING_MODES
+    INSTRUCTION_ADDRESSING_MODES,
+    VAULT_INSTR_NAMES
 )
 from register_file import register_file
 
@@ -58,7 +59,8 @@ class DecodeStage:
 
         # Generar señales de control
         control_signals = {
-            'use_boveda': opcode_name in ['VSTORE', 'VINIT', 'SIGN', 'KVL', 'KVOP'],
+            # 'use_boveda' ahora viene desde la definición centralizada
+            'use_boveda': opcode_name in VAULT_INSTR_NAMES,
             'is_hash': opcode_name in ['HASH_INIT', 'HASH_BLOCK', 'HASH_FINAL'],
             'is_arithmetic': opcode_name in ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'ADDI', 'ANDI'],
             'is_modular': opcode_name in ['MOD', 'MODADD', 'MULMOD'],

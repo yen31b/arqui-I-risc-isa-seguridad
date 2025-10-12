@@ -10,7 +10,8 @@ Responsabilidad:
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vault')))
+from vault_interface import VaultInterface
 from isa_definition import INSTRUCTION_FORMAT_DECISION
 from isa_types import UInt64, Vec4x64
 from register_file import register_file
@@ -26,10 +27,14 @@ class Pipeline:
         self.instr_mem = InstructionMemory(instructions)
         self.data_mem = DataMemory(vault_range=(0x1000, 0x1FFF))
 
+        # Interfaz única de bóveda para todo el pipeline
+        self.vault_if = VaultInterface()
+
         self.fetch = FetchStage(self.rf, self.instr_mem)
         self.decode = DecodeStage(self.rf)
-        self.execute = ExecuteStage()
-        self.memory = MemoryStage(self.data_mem)
+        # pasar vault_if a las etapas que lo necesitan
+        self.execute = ExecuteStage(vault_if=self.vault_if)
+        self.memory = MemoryStage(self.data_mem, vault_if=self.vault_if)
         self.writeback = WriteBackStage(self.rf)
 
         self.completed = []
@@ -159,3 +164,6 @@ class Pipeline:
         self.instr_mem.instructions = test_program
         self.rf.write('PC', 0)
         print("Programa de prueba cargado.")
+    def get_cycle(self):
+        """Retorna el número de ciclos ejecutados."""
+        return self.cycle

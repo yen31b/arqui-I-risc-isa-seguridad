@@ -74,4 +74,3 @@ class KeyVault:
         if not authorized:
             raise VaultAccessError("Dump requiere autorización")
         return dict(self._slots)
-

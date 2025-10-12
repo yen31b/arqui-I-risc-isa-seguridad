@@ -11,7 +11,8 @@ Responsabilidad:
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vault')))
+from vault_interface import VaultInterface
 from isa_types import UInt64, Vec4x64
 
 class DataMemory:
@@ -51,8 +52,9 @@ class DataMemory:
         return dict(self.metrics)
 
 class MemoryStage:
-    def __init__(self, data_memory: DataMemory):
+    def __init__(self, data_memory: DataMemory, vault_if: VaultInterface | None = None):
         self.mem = data_memory
+        self.vault_if = vault_if
         self.metrics = {'cycles': 0, 'operations': 0}
     
     def execute(self, ex_result, decoded_instr):
@@ -68,28 +70,58 @@ class MemoryStage:
         
         print(f"  🔧 MEM: Opcode {opcode}, operandos: {list(ops.keys())}")
         
-        # Caso: operaciones con memoria
-        if opcode == 'LOAD':
-            # Acceso a memoria general
-            address = ex_result.get('result', 0)
-            result = self.mem.read(address)
-            latency = ex_result.get('latency', 1) + 1
-            print(f"  🔧 MEM: LOAD desde 0x{int(address):x} = 0x{int(result):x}")
-            
-        elif opcode == 'STORE':
-            # Escritura a memoria general
-            address = ex_result.get('result', 0)
-            value = ops.get('rs2_val', 0)  # CORRECCIÓN: en STORE, el valor está en rs2
-            self.mem.write(address, value)
-            result = None
-            latency = ex_result.get('latency', 1) + 1
-            print(f"  🔧 MEM: STORE 0x{int(value):x} en 0x{int(address):x}")
+         # Si la instrucción requiere acceso a la bóveda, delegar a VaultInterface
+        if ctrl.get('use_boveda', False):
+            if not self.vault_if:
+                raise RuntimeError("VaultInterface no configurada en MemoryStage para acceso a bóveda")
 
+            slot_idx = ops.get('vault_idx')
+            try:
+                # Dependiendo de la instrucción, el EX ya pudo devolver un resultado (p.ej. state)
+                if opcode in ('KVL', 'VLOAD'):
+                    result = self.vault_if.execute_vault_operation('KVL', slot_idx)
+                elif opcode in ('KVW', 'VSTORE', 'VINIT'):
+                    # value puede venir de operandos o de ex_result
+                    value = ops.get('rs2_val', ex_result.get('result'))
+                    self.vault_if.execute_vault_operation('KVW', slot_idx, value=value)
+                    result = None
+                elif opcode in ('SGEN', 'SIGN', 'KVOP'):
+                    # usar el resultado de EX (por ejemplo el estado hash) o los operandos
+                    state = ex_result.get('result') or ops.get('hash_state')
+                    result = self.vault_if.execute_vault_operation('SGEN' if opcode in ('SGEN','SIGN') else 'KVOP', slot_idx, state=state, value=ops.get('rs1_val'))
+                else:
+                    # delegar genérico
+                    result = self.vault_if.execute_vault_operation(opcode, slot_idx, value=ex_result.get('result'))
+                latency = ex_result.get('latency', 1) + 1
+                print(f"  🔧 MEM: Bóveda {opcode} slot={slot_idx} result={result}")
+            except Exception as e:
+                # contabilizar y propagar
+                self.metrics['operations'] += 1
+                self.metrics['cycles'] += 1
+                raise
+
+        # Caso: operaciones con memoria
         else:
-            # Instrucciones ALU / no-mem: propagar resultado de EX a WB
-            result = ex_result.get('result')
-            latency = ex_result.get('latency', 1)
-            print(f"  🔧 MEM: Propagando resultado de EX: {result}")
+            # Caso: operaciones con memoria general
+            if opcode == 'LOAD':
+                # Acceso a memoria general
+                address = ex_result.get('result', 0)
+                result = self.mem.read(address)
+                latency = ex_result.get('latency', 1) + 1
+                print(f"  🔧 MEM: LOAD desde 0x{int(address):x} = 0x{int(result):x}")
+                
+            elif opcode == 'STORE':
+                # Escritura a memoria general
+                address = ex_result.get('result', 0)
+                value = ops.get('rs2_val', 0)  # CORRECCIÓN: en STORE, el valor está en rs2
+                self.mem.write(address, value)
+
+
+            else:
+                # Instrucciones ALU / no-mem: propagar resultado de EX a WB
+                result = ex_result.get('result')
+                latency = ex_result.get('latency', 1)
+                print(f"  🔧 MEM: Propagando resultado de EX: {result}")
 
         self.metrics['operations'] += 1
         self.metrics['cycles'] += latency
