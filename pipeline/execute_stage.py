@@ -182,16 +182,36 @@ class ExecuteStage:
             latency = 4
             print(f"  🔧 EX: NONLIN({a_val}) = {result}")
 
-        # Operaciones de rotación
+        # Restauradas: ROTL / ROTR (rotaciones circulares sobre 64 bits)
         elif opcode == 'ROTL':
+            # shift tomado de imm (o rs2 si tu convención lo requiere)
             shift = imm % 64
-            result = UInt64(((a_val << shift) & 0xFFFFFFFFFFFFFFFF) | (a_val >> (64 - shift)))
-            print(f"  🔧 EX: ROTL {a_val} << {shift} = {result}")
+            result = UInt64(a_val).rotl(shift)
+            latency = 1
+            print(f"  🔧 EX: ROTL {a_val} rol {shift} = {result}")
 
         elif opcode == 'ROTR':
             shift = imm % 64
-            result = UInt64((a_val >> shift) | ((a_val << (64 - shift)) & 0xFFFFFFFFFFFFFFFF))
-            print(f"  🔧 EX: ROTR {a_val} >> {shift} = {result}")
+            result = UInt64(a_val).rotr(shift)
+            latency = 1
+            print(f"  🔧 EX: ROTR {a_val} ror {shift} = {result}")
+
+        # --- Nuevas instrucciones: SHIFTL / SHIFTR ---
+        elif opcode == 'SHIFTL':
+            # Desplazamiento lógico a la izquierda, shift tomado de rs2 o imm
+            shift = (b_val if b_val is not None else imm) & 0x3F
+            res = ((a_val << shift) & 0xFFFFFFFFFFFFFFFF)
+            result = UInt64(res)
+            latency = 1
+            print(f"  🔧 EX: SHIFTL {a_val} << {shift} = {result}")
+
+        elif opcode == 'SHIFTR':
+            # Desplazamiento lógico a la derecha, shift tomado de rs2 o imm
+            shift = (b_val if b_val is not None else imm) & 0x3F
+            res = (a_val >> shift) & 0xFFFFFFFFFFFFFFFF
+            result = UInt64(res)
+            latency = 1
+            print(f"  🔧 EX: SHIFTR {a_val} >> {shift} = {result}")
 
         # Mezclas no lineales personalizadas (requieren rf)
         elif opcode == 'CALC_F':
