@@ -39,13 +39,20 @@ R_TYPE_OPS = {
     "MUL",
     "MOD",
     "MULMOD",
+    "MIXMUL",
+    "MODADD",
     "ROTL",
     "ROTR",
+    "NONLIN",
+    "CALC_F",
+    "CALC_G",
+    "CALC_H",
 }
 I_REG_IMM_OPS = {"ADDI", "ANDI", "LOAD"}
 S_TYPE_STORE_OPS = {"STORE"}
 BRANCH_OPS = {"BEQ", "BNE", "BLT"}
-V_TYPE_OPS = {"VSTORE", "VINIT"}
+UPDATE_OPS = {"UPDATE_A", "UPDATE_B", "UPDATE_C", "UPDATE_D"}
+V_TYPE_OPS = {"VSTORE", "VINIT", "VLOAD", "KVW", "KVL", "KVOP", "SGEN"}
 H_TYPE_OPS = {"HASH_INIT", "HASH_BLOCK", "HASH_FINAL", "SIGN", "VERIFY"}
 
 FUNCT_DEFAULTS: Dict[str, int] = {
@@ -58,8 +65,15 @@ FUNCT_DEFAULTS: Dict[str, int] = {
     "VINIT": ISA.FUNCT_CODES.get("VAULT_HASH", 0),
 }
 
-VAULT_SLOT_MAP = {name.upper(): index for name, index in ISA.VAULT_SLOTS.items()}
+VAULT_SLOT_MAP: Dict[str, int] = {}
+for name, index in ISA.VAULT_SLOTS.items():
+    upper = name.upper()
+    VAULT_SLOT_MAP[upper] = index
+    VAULT_SLOT_MAP[upper.replace("_", "")] = index
 REGISTER_MAP = {name.upper(): value for name, value in ISA.REGISTERS.items()}
+
+R_TYPE_OPERAND_COUNTS: Dict[str, int] = {mnemonic: 3 for mnemonic in R_TYPE_OPS}
+R_TYPE_OPERAND_COUNTS["NONLIN"] = 2
 
 
 class AssemblyError(Exception):
@@ -181,6 +195,9 @@ class Assembler:
         if mnemonic == "NOP":
             return ISA.encode_instruction("R_TYPE", opcode=opcode, rd=0, rs1=0, rs2=0, funct=0)
 
+        if mnemonic in UPDATE_OPS:
+            return self._encode_update(line, opcode)
+
         if mnemonic in R_TYPE_OPS:
             return self._encode_r_type(line, opcode)
 
@@ -210,24 +227,69 @@ class Assembler:
 
         raise AssemblyError(f"Formato no soportado para '{mnemonic}'", line_no=line.line_no, line_text=line.raw)
 
-    def _encode_r_type(self, line: ParsedLine, opcode: int) -> int:
-        if len(line.operands) not in (3, 4):
-            raise AssemblyError("Formato R espera 3 o 4 operandos", line_no=line.line_no, line_text=line.raw)
+    def _encode_update(self, line: ParsedLine, opcode: int) -> int:
+        if len(line.operands) not in (5, 6):
+            raise AssemblyError(
+                "UPDATE_* espera 'rd, rs1, rs2, rs3, rs4[, extra]'",
+                line_no=line.line_no,
+                line_text=line.raw,
+            )
+
         rd = self._parse_register(line.operands[0], line)
         rs1 = self._parse_register(line.operands[1], line)
         rs2 = self._parse_register(line.operands[2], line)
-        if len(line.operands) == 4:
-            funct = self._resolve_funct(line.operands[3], line)
+        rs3 = self._parse_register(line.operands[3], line)
+        rs4 = self._parse_register(line.operands[4], line)
+
+        funct = ((rs3 & 0x1F) << 5) | (rs4 & 0x1F)
+
+        if len(line.operands) == 6:
+            extra_bits = self._resolve_immediate(line.operands[5], bits=11, signed=False)
+            funct = (funct | extra_bits) & 0x7FF
+
+        return ISA.encode_instruction(
+            "R_TYPE",
+            opcode=opcode,
+            rd=rd,
+            rs1=rs1,
+            rs2=rs2,
+            funct=funct,
+        )
+
+    def _encode_r_type(self, line: ParsedLine, opcode: int) -> int:
+        expected_regs = R_TYPE_OPERAND_COUNTS.get(line.mnemonic, 3)
+        if len(line.operands) not in (expected_regs, expected_regs + 1):
+            raise AssemblyError(
+                f"{line.mnemonic} espera {expected_regs} registros" + (" más funct opcional" if expected_regs != len(line.operands) else ""),
+                line_no=line.line_no,
+                line_text=line.raw,
+            )
+        rd = self._parse_register(line.operands[0], line)
+        rs1 = self._parse_register(line.operands[1], line)
+        if expected_regs >= 2:
+            rs2_token_index = 2 if expected_regs >= 3 else None
+        else:
+            rs2_token_index = None
+        if rs2_token_index is not None:
+            rs2 = self._parse_register(line.operands[rs2_token_index], line)
+        else:
+            rs2 = 0
+        if len(line.operands) == expected_regs + 1:
+            funct = self._resolve_funct(line.operands[-1], line)
         else:
             funct = FUNCT_DEFAULTS.get(line.mnemonic, 0)
         return ISA.encode_instruction("R_TYPE", opcode=opcode, rd=rd, rs1=rs1, rs2=rs2, funct=funct & 0x7FF)
 
     def _encode_i_type_reg_imm(self, line: ParsedLine, opcode: int) -> int:
-        if len(line.operands) != 3:
-            raise AssemblyError("Formato I espera 3 operandos", line_no=line.line_no, line_text=line.raw)
-        rd = self._parse_register(line.operands[0], line)
-        rs1 = self._parse_register(line.operands[1], line)
-        imm = self._resolve_immediate(line.operands[2], bits=16, signed=True)
+        if line.mnemonic == "LOAD" and len(line.operands) == 2:
+            rd = self._parse_register(line.operands[0], line)
+            rs1, imm = self._parse_memory_token(line.operands[1], line)
+        else:
+            if len(line.operands) != 3:
+                raise AssemblyError("Formato I espera 3 operandos", line_no=line.line_no, line_text=line.raw)
+            rd = self._parse_register(line.operands[0], line)
+            rs1 = self._parse_register(line.operands[1], line)
+            imm = self._resolve_immediate(line.operands[2], bits=16, signed=True)
         return ISA.encode_instruction("I_TYPE", opcode=opcode, rd=rd, rs1=rs1, imm=imm & 0xFFFF)
 
     def _encode_loadi(self, line: ParsedLine, opcode: int) -> int:
@@ -263,11 +325,19 @@ class Assembler:
         return ISA.encode_instruction("I_TYPE", opcode=opcode, rd=rd, rs1=0, imm=target & 0xFFFF)
 
     def _encode_store(self, line: ParsedLine, opcode: int) -> int:
-        if len(line.operands) != 3:
-            raise AssemblyError("STORE espera 'base, src, offset'", line_no=line.line_no, line_text=line.raw)
-        rs1 = self._parse_register(line.operands[0], line)
-        rs2 = self._parse_register(line.operands[1], line)
-        imm = self._resolve_immediate(line.operands[2], bits=16, signed=True)
+        if len(line.operands) == 2:
+            rs2 = self._parse_register(line.operands[0], line)
+            rs1, imm = self._parse_memory_token(line.operands[1], line)
+        elif len(line.operands) == 3:
+            rs1 = self._parse_register(line.operands[0], line)
+            rs2 = self._parse_register(line.operands[1], line)
+            imm = self._resolve_immediate(line.operands[2], bits=16, signed=True)
+        else:
+            raise AssemblyError(
+                "STORE espera 'base, src, offset' o 'src, offset(base)'",
+                line_no=line.line_no,
+                line_text=line.raw,
+            )
         return ISA.encode_instruction("S_TYPE", opcode=opcode, rs1=rs1, rs2=rs2, imm=imm & 0xFFFF)
 
     def _encode_branch(self, line: ParsedLine, opcode: int, labels: Dict[str, int], address: int) -> int:
@@ -337,6 +407,22 @@ class Assembler:
             raise AssemblyError(f"Valor {value} fuera de rango para {bits} bits {('con' if signed else 'sin')} signo ({rango})")
         return value & ((1 << bits) - 1)
 
+    def _parse_memory_token(self, token: str, line: ParsedLine) -> Tuple[int, int]:
+        if "(" not in token or not token.endswith(")"):
+            raise AssemblyError(
+                "Operando de memoria inválido, usa offset(base)",
+                line_no=line.line_no,
+                line_text=line.raw,
+            )
+        offset_part, base_part = token.split("(", 1)
+        base_name = base_part[:-1].strip()
+        if not base_name:
+            raise AssemblyError("Se requiere registro base en la dirección", line_no=line.line_no, line_text=line.raw)
+        offset_token = offset_part.strip() or "0"
+        rs1 = self._parse_register(base_name, line)
+        imm = self._resolve_immediate(offset_token, bits=16, signed=True)
+        return rs1, imm
+
     def _resolve_branch_offset(self, token: str, labels: Dict[str, int], *, current_address: int) -> int:
         label_key = token.replace("_", "").upper()
         if label_key in labels:
@@ -349,9 +435,12 @@ class Assembler:
         return offset & 0xFFFF
 
     def _resolve_vault_slot(self, token: str, line: ParsedLine) -> int:
-        key = token.replace("_", "").upper()
-        if key in VAULT_SLOT_MAP:
-            return VAULT_SLOT_MAP[key]
+        key_raw = token.upper()
+        key_compact = token.replace("_", "").upper()
+        if key_raw in VAULT_SLOT_MAP:
+            return VAULT_SLOT_MAP[key_raw]
+        if key_compact in VAULT_SLOT_MAP:
+            return VAULT_SLOT_MAP[key_compact]
         try:
             slot = int(token, 0)
         except ValueError as exc:
@@ -361,9 +450,12 @@ class Assembler:
         return slot
 
     def _resolve_funct(self, token: str, line: ParsedLine) -> int:
-        key = token.replace("_", "").upper()
-        if key in ISA.FUNCT_CODES:
-            return ISA.FUNCT_CODES[key]
+        key_raw = token.upper()
+        key_compact = token.replace("_", "").upper()
+        if key_raw in ISA.FUNCT_CODES:
+            return ISA.FUNCT_CODES[key_raw]
+        if key_compact in ISA.FUNCT_CODES:
+            return ISA.FUNCT_CODES[key_compact]
         try:
             return int(token, 0)
         except ValueError as exc:

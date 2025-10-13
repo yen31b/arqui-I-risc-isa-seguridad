@@ -1,0 +1,29 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# VS Code workspace settings
+.vscode/
+
+# OS-specific clutter
+.DS_Store
+Thumbs.db
+
+# Generated assembler outputs (optional)
+*.hex
+*.bin
+*.obj
+*.out
+
+# Logs
+*.log
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
