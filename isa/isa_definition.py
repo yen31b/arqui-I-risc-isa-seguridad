@@ -192,28 +192,34 @@ def get_field_value(instruction, field_name, format_type):
     return value
 
 def encode_instruction(format_type, **fields):
-    """Codifica una instrucción a partir de los campos"""
-    if format_type not in INST_FORMATS:
-        raise ValueError(f"Formato no válido: {format_type}")
+	"""Codifica una instrucción a partir de los campos"""
+	if format_type not in INST_FORMATS:
+		raise ValueError(f"Formato no válido: {format_type}")
 
-    instruction = 0
-    field_defs = INST_FORMATS[format_type]['fields']
+	instruction = 0
+	field_defs = INST_FORMATS[format_type]['fields']
 
-    for field_name, value in fields.items():
-        if field_name not in field_defs:
-            raise ValueError(f"Campo no válido: {field_name}")
+	for field_name, value in fields.items():
+		if field_name not in field_defs:
+			raise ValueError(f"Campo no válido: {field_name}")
 
-        start, end = field_defs[field_name]
-        field_bits = start - end + 1
-        max_value = (1 << field_bits) - 1
+		start, end = field_defs[field_name]
+		field_bits = start - end + 1
+		max_value = (1 << field_bits) - 1
 
-        if value > max_value:
-            raise ValueError(
-                f"Valor {value} excede los {field_bits} bits para {field_name}")
+		# Aceptar valores negativos (two's complement) y truncar/mascarar valores grandes
+		ival = int(value)
+		if ival < 0:
+			# aplicar two's-complement dentro del ancho del campo
+			ival = (ival + (1 << field_bits)) & max_value
+		else:
+			# permitir valores > signed_max siempre que quepan en field_bits;
+			# truncar a los field_bits (equivalente a tomar los low bits)
+			ival = ival & max_value
 
-        instruction |= (value << end)
+		instruction |= (ival << end)
 
-    return instruction
+	return instruction
 
 
 def instruction_to_string(instruction):

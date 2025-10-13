@@ -45,8 +45,28 @@ class DecodeStage:
         for field in fields:
             try:
                 value = get_field_value(instruction, field, format_type)
+                # Si el campo es inmediato, decidir si hacer sign-extend o zero-extend
+                if field == 'imm':
+                    # Opcodes donde el inmediato se interpreta como signed offset / signed immediate
+                    SIGNED_IMM_OPCODES = {
+                        'ADDI', 'LOAD', 'STORE', 'BEQ', 'BNE', 'JUMP', 'BLT'
+                    }
+                    if opcode_name in SIGNED_IMM_OPCODES:
+                        start, end = INST_FORMATS[format_type]['fields'][field]
+                        width = start - end + 1
+                        # sign-extend width->python int (signed)
+                        if value & (1 << (width - 1)):
+                            value = value - (1 << width)
+                    else:
+                        # zero-extend: keep raw unsigned 0..(2^width-1)
+                        pass
+
                 operandos[field] = value
-                print(f"  🔍 DECODE: {field} = {value} (0x{value:x})")
+                # Mostrar inmediato en hex si proviene de campo imm y es negativo
+                if field == 'imm' and isinstance(value, int) and value < 0:
+                    print(f"  🔍 DECODE: {field} = {value} (signed) (0x{(value & ((1<<64)-1)):x})")
+                else:
+                    print(f"  🔍 DECODE: {field} = {value} (0x{value:x})")
             except Exception as e:
                 print(f"  ⚠️  DECODE: Error extrayendo {field}: {e}")
                 operandos[field] = 0

@@ -9,7 +9,7 @@ Responsabilidad:
 """
 from vault.vault_interface import VaultInterface
 from isa.isa_types import UInt64, Vec4x64
-from isa.hash_accel import mixmul, modadd, nonlin
+from isa.hash_accel import mixmul, modadd, nonlin, apply_block  # añadido apply_block
 from isa.isa_definition import TOYMDMA_CONSTANTS
 
 class ExecuteStage:
@@ -18,6 +18,9 @@ class ExecuteStage:
             'exec_count': 0,
             'cycles': 0,
             'op_latency': {},
+            # contadores adicionales para control de flujo
+            'jumps': 0,
+            'branches': 0,
         }
         # Interfaz a la bóveda (puede ser None en tests unitarios simples)
         self.vault_if = vault_if
@@ -61,6 +64,22 @@ class ExecuteStage:
             imm = 0
 
         print(f"  🔧 EX: a_val={a_val}, b_val={b_val}, imm={imm}")
+
+        # Obtener PC actual (fetch ya incrementó PC); usar 0 si no hay rf
+        if self.rf is not None:
+            try:
+                pc_val = int(self.rf.read('PC'))
+            except Exception:
+                pc_val = 0
+        else:
+            pc_val = 0
+
+        # Helper: sign-extend 16-bit immediate a entero con signo (offset en bytes)
+        def sign_extend_16(x):
+            x = int(x) & 0xFFFF
+            if x & 0x8000:
+                return x - (1 << 16)
+            return x
 
         # Señal de bóveda por defecto
         vault_signal = False
@@ -139,6 +158,12 @@ class ExecuteStage:
             result = UInt64(a_val + imm)
             print(f"  🔧 EX: ADDI {a_val} + {imm} = {result}")
 
+        elif opcode == 'LOADI':
+            # La instrucción LOADI ignora rs1 y toma sólo el inmediato
+            result = UInt64(imm)
+            print(f"  🔧 EX: LOADI  imm = {imm} → {result}")
+            return {'result': result, 'latency': 1}
+
         elif opcode == 'ANDI':
             result = UInt64(a_val & imm)
             print(f"  🔧 EX: ANDI {a_val} & {imm} = {result}")
@@ -148,6 +173,46 @@ class ExecuteStage:
             result = UInt64(a_val + imm)
             print(f"  🔧 EX: {opcode} address = {a_val} + {imm} = {result}")
             latency = 1
+
+        ####################################
+        # Control de flujo: JUMP / BEQ / BNE
+        elif opcode == 'JUMP':
+            # imm se interpreta como offset (signed 16-bit) en bytes relativo al PC actual (que ya apunta a next instruction)
+            offset = sign_extend_16(imm)
+            target = UInt64(pc_val + offset)
+            self.metrics['jumps'] = self.metrics.get('jumps', 0) + 1
+            print(f"  🔧 EX: JUMP   PC({hex(pc_val)}) + {offset} = {hex(int(target))}")
+            return {
+                'result': None,
+                'latency': 1,
+                'branch_taken': True,
+                'target_pc': target
+            }
+
+        elif opcode == 'BEQ':
+            offset = sign_extend_16(imm)
+            taken = (a_val == b_val)
+            self.metrics['branches'] = self.metrics.get('branches', 0) + 1
+            print(f"  🔧 EX: BEQ    {a_val} == {b_val}? {'taken' if taken else 'not taken'}")
+            return {
+                'result': None,
+                'latency': 1,
+                'branch_taken': taken,
+                'target_pc': UInt64(pc_val + offset) if taken else None
+            }
+
+        elif opcode == 'BNE':
+            offset = sign_extend_16(imm)
+            taken = (a_val != b_val)
+            self.metrics['branches'] = self.metrics.get('branches', 0) + 1
+            print(f"  🔧 EX: BNE    {a_val} != {b_val}? {'taken' if taken else 'not taken'}")
+            return {
+                'result': None,
+                'latency': 1,
+                'branch_taken': taken,
+                'target_pc': UInt64(pc_val + offset) if taken else None
+            }
+    
 
         # Operaciones modulares simplificadas
         elif opcode == 'MOD':
@@ -161,6 +226,74 @@ class ExecuteStage:
             result = UInt64((a_val * b_val) % prime)
             print(f"  🔧 EX: MULMOD ({a_val} * {b_val}) % {prime} = {result}")
             latency = 3
+
+        # { added: MUL - multiplicación truncada a 64 bits }
+        elif opcode == 'MUL':
+            # Multiplicación truncada a 64 bits (comportamiento común en ISAs R-type)
+            res = (a_val * b_val) & 0xFFFFFFFFFFFFFFFF
+            result = UInt64(res)
+            latency = 3
+            print(f"  🔧 EX: MUL {a_val} * {b_val} -> {result}")
+
+        # --- Añadidas: HASH_INIT y HASH_BLOCK ---
+        elif opcode == 'HASH_INIT':
+            # Intentar leer IVs HASH_A..HASH_D desde la bóveda (índices 4..7).
+            vals = None
+            if self.vault_if:
+                try:
+                    vals_tmp = []
+                    for idx in range(4, 8):
+                        handle = self.vault_if.execute_vault_operation('KVL', idx)
+                        # handle puede ser KeyHandle; usar xor_scalar(0) para recuperar valor
+                        if hasattr(handle, 'xor_scalar'):
+                            v = handle.xor_scalar(0)
+                            vals_tmp.append(int(v))
+                        else:
+                            # si la interfaz devolviera directamente un entero
+                            vals_tmp.append(int(handle))
+                    vals = vals_tmp
+                    print(f"  🔧 EX: HASH_INIT leídos desde bóveda: {vals}")
+                except Exception:
+                    vals = None
+
+            if vals is None:
+                vals = [
+                    TOYMDMA_CONSTANTS.get('INITIAL_A'),
+                    TOYMDMA_CONSTANTS.get('INITIAL_B'),
+                    TOYMDMA_CONSTANTS.get('INITIAL_C'),
+                    TOYMDMA_CONSTANTS.get('INITIAL_D'),
+                ]
+                print(f"  🔧 EX: HASH_INIT usando constantes: {vals}")
+
+            # Escribir en R4..R7 si hay register file
+            if self.rf:
+                self.rf.write('R4', UInt64(vals[0]))
+                self.rf.write('R5', UInt64(vals[1]))
+                self.rf.write('R6', UInt64(vals[2]))
+                self.rf.write('R7', UInt64(vals[3]))
+            result = Vec4x64(vals)
+            latency = 4
+
+        elif opcode == 'HASH_BLOCK':
+            # Procesar bloque de 64 bits provisto en rs1 (a_val)
+            block = a_val
+            self._require_rf(opcode)
+            # leer estado actual de R4..R7
+            current_state = Vec4x64([self.rf.read('R4'), self.rf.read('R5'), self.rf.read('R6'), self.rf.read('R7')])
+            # aplicar función de bloque
+            try:
+                new_state = apply_block(current_state, block)
+            except Exception as e:
+                raise
+
+            # escribir nuevo estado en R4..R7
+            self.rf.write('R4', int(new_state[0]))
+            self.rf.write('R5', int(new_state[1]))
+            self.rf.write('R6', int(new_state[2]))
+            self.rf.write('R7', int(new_state[3]))
+            result = new_state
+            latency = 6
+            print(f"  🔧 EX: HASH_BLOCK procesado, nuevo estado R4..R7 = {new_state}")
 
         # Instrucciones de mezcla/no-lineal delegando en hash_accel
         elif opcode == 'MIXMUL':
@@ -180,17 +313,18 @@ class ExecuteStage:
 
         # Restauradas: ROTL / ROTR (rotaciones circulares sobre 64 bits)
         elif opcode == 'ROTL':
-            # shift tomado de imm (o rs2 si tu convención lo requiere)
-            shift = imm % 64
+            # Usa el registro rs2 (b_val) o inmediato si no hay
+            shift = (b_val if b_val is not None else imm) & 0x3F
             result = UInt64(a_val).rotl(shift)
             latency = 1
             print(f"  🔧 EX: ROTL {a_val} rol {shift} = {result}")
 
         elif opcode == 'ROTR':
-            shift = imm % 64
+            shift = (b_val if b_val is not None else imm) & 0x3F
             result = UInt64(a_val).rotr(shift)
             latency = 1
             print(f"  🔧 EX: ROTR {a_val} ror {shift} = {result}")
+
 
         # --- Nuevas instrucciones: SHIFTL / SHIFTR ---
         elif opcode == 'SHIFTL':
@@ -198,8 +332,8 @@ class ExecuteStage:
             shift = (b_val if b_val is not None else imm) & 0x3F
             res = ((a_val << shift) & 0xFFFFFFFFFFFFFFFF)
             result = UInt64(res)
-            latency = 1
-            print(f"  🔧 EX: SHIFTL {a_val} << {shift} = {result}")
+            latency = 2
+            print(f"  🔧 EX: SHIFTL {a_val} * {b_val} -> {result}")
 
         elif opcode == 'SHIFTR':
             # Desplazamiento lógico a la derecha, shift tomado de rs2 o imm
@@ -238,70 +372,60 @@ class ExecuteStage:
             result = UInt64(h)
             print(f"  🔧 EX: CALC_H = {A} ^ {B} ^ {C} ^ {D} = {h}")
 
-        # UPDATE_* (requieren rf)
-        elif opcode in ('UPDATE_A', 'UPDATE_B', 'UPDATE_C', 'UPDATE_D'):
+        # HASH_FINAL rd: exportar estado hash (Vec4x64). rd puede venir en 'rs1' o 'rd' según encoding.
+        elif opcode == 'HASH_FINAL':
             self._require_rf(opcode)
-            funct_val = ops.get('funct', 0)
-            rs3_idx = (funct_val >> 5) & 0b11111
-            rs4_idx = funct_val & 0b11111
-            rs3_val = int(self.rf.read(f"R{rs3_idx}"))
-            rs4_val = int(self.rf.read(f"R{rs4_idx}"))
+            state = Vec4x64([self.rf.read('R4'), self.rf.read('R5'), self.rf.read('R6'), self.rf.read('R7')])
+            # intentar escribir en registro destino si se indica (rs1 como base)
+            dest = None
+            if 'rd' in ops:
+                dest = ops.get('rd')
+            elif 'rs1' in ops:
+                dest = ops.get('rs1')
+            if dest is not None and self.rf:
+                base = int(dest)
+                # escribir state en registros contiguos R{base}..R{base+3} si hay espacio
+                for i in range(4):
+                    regname = f"R{base + i}"
+                    self.rf.write(regname, int(state[i]))
+                print(f"  🔧 EX: HASH_FINAL -> escritos R{base}..R{base+3}")
+            result = state
+            latency = 4
 
-            if opcode == 'UPDATE_A':
-                A = a_val
-                f = b_val
-                mul = rs3_val
-                B = rs4_val
-                temp = (A + f + mul) & 0xFFFFFFFFFFFFFFFF
-                rot = ((temp << 7) | (temp >> (64 - 7))) & 0xFFFFFFFFFFFFFFFF
-                result = UInt64((rot + B) & 0xFFFFFFFFFFFFFFFF)
-                print(f"  🔧 EX: UPDATE_A = rol64({A} + {f} + {mul}, 7) + {B} = {result}")
-
-            elif opcode == 'UPDATE_B':
-                Bv = a_val
-                g = b_val
-                block = rs3_val
-                C = rs4_val
-                temp = (Bv + g + block) & 0xFFFFFFFFFFFFFFFF
-                rot = ((temp << 11) | (temp >> (64 - 11))) & 0xFFFFFFFFFFFFFFFF
-                result = UInt64((rot + (C * 3)) & 0xFFFFFFFFFFFFFFFF)
-                print(f"  🔧 EX: UPDATE_B = rol64({Bv} + {g} + {block}, 11) + ({C} * 3) = {result}")
-
-            elif opcode == 'UPDATE_C':
-                C = a_val
-                h = b_val
-                mul = rs3_val
-                D = rs4_val
-                prime = TOYMDMA_CONSTANTS.get('PRIME_MOD', 0xFFFFFFFFFFFFFFFF)
-                temp = (C + h + mul) & 0xFFFFFFFFFFFFFFFF
-                rot = ((temp << 17) | (temp >> (64 - 17))) & 0xFFFFFFFFFFFFFFFF
-                result = UInt64((rot + (D % prime)) & 0xFFFFFFFFFFFFFFFF)
-                print(f"  🔧 EX: UPDATE_C = rol64({C} + {h} + {mul}, 17) + ({D} % {prime}) = {result}")
-
-            elif opcode == 'UPDATE_D':
-                Dv = a_val
-                A = b_val
-                block = rs3_val
-                f = rs4_val
-                temp = (Dv + A + block) & 0xFFFFFFFFFFFFFFFF
-                rot = ((temp << 19) | (temp >> (64 - 19))) & 0xFFFFFFFFFFFFFFFF
-                result = UInt64((rot ^ (f * 5)) & 0xFFFFFFFFFFFFFFFF)
-                print(f"  🔧 EX: UPDATE_D = rol64({Dv} + {A} + {block}, 19) ^ ({f} * 5) = {result}")
-
-        else:
-            # Instrucción no implementada en EX (puede ser control/unknown)
-            pass
+        # VERIFY rd, vault_idx, firma : verificar firma contra llave en bóveda (devuelve flag en rd)
+        elif opcode == 'VERIFY':
+            if not self.vault_if:
+                raise RuntimeError("VaultInterface no configurada para VERIFY")
+            # slot index puede venir como vault_idx o en funct
+            slot_idx = ops.get('vault_idx', ops.get('funct'))
+            # estado (hash) preferible en 'hash_state' o en registros R4..R7
+            state = ops.get('hash_state')
+            if state is None:
+                # construir desde registros si no viene precompuesto
+                try:
+                    state = Vec4x64([self.rf.read('R4'), self.rf.read('R5'), self.rf.read('R6'), self.rf.read('R7')])
+                except Exception:
+                    state = None
+            # firma puede venir en rs1_val o en 'signature'
+            sig = ops.get('rs1_val', ops.get('signature', None))
+            # delegar verificación a la interfaz de bóveda
+            verified = False
+            try:
+                verified = bool(self.vault_if.execute_vault_operation('VERIFY', slot_idx, state=state, signature=sig))
+            except Exception as e:
+                # tratar como no verificado si falla
+                verified = False
+            result = UInt64(1 if verified else 0)
+            latency = 6
+            print(f"  🔧 EX: VERIFY slot={slot_idx} -> {'OK' if verified else 'FAIL'}")
 
         # Actualizar métricas
         self.metrics['exec_count'] += 1
+        self.metrics['op_latency'].setdefault(opcode, []).append(latency)
         self.metrics['cycles'] += latency
-        self.metrics['op_latency'][opcode] = latency
 
         return {
             'result': result,
             'latency': latency,
             'vault_signal': vault_signal
         }
-
-    def get_metrics(self):
-        return dict(self.metrics)

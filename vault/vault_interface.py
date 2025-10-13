@@ -100,6 +100,38 @@ class VaultInterface:
                     raise ValueError("Se requiere Vec4x64 para generación de firma")
                 result = self.vault.generate_signature(slot_name, state)
 
+            elif op == 'VERIFY':
+                # Verifica que `signature` corresponda a `state XOR key(slot)`
+                state = kwargs.get('state')
+                signature = kwargs.get('signature')
+                # Coerciones flexibles
+                def to_vec4(x):
+                    if isinstance(x, Vec4x64):
+                        return x
+                    if x is None:
+                        return None
+                    try:
+                        vals = list(x)
+                        if len(vals) == 4:
+                            return Vec4x64(vals)
+                    except Exception:
+                        pass
+                    # si llega un entero (posible), construir vector repetido (no habitual)
+                    if isinstance(x, int):
+                        return Vec4x64([x, x, x, x])
+                    return None
+
+                vec_state = to_vec4(state)
+                vec_sig = to_vec4(signature)
+                if vec_state is None or vec_sig is None:
+                    raise ValueError("state y signature deben ser Vec4x64 o iterable de 4 enteros")
+
+                # obtener handle seguro y generar firma esperada
+                handle: KeyHandle = self.vault.get_handle(slot_name, 'KVL')
+                expected = handle.use_for_signature(vec_state)  # Vec4x64
+                ok = all(int(expected[i]) == int(vec_sig[i]) for i in range(4))
+                result = bool(ok)
+
             else:
                 raise ValueError(f"Operación de bóveda no soportada: {operation}")
 

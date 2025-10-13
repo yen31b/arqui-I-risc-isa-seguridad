@@ -55,6 +55,19 @@ class Pipeline:
         ex_result = self.execute.execute(decoded)
         print(f"→ EX: resultado = {ex_result['result']}, latencia = {ex_result['latency']}")
 
+        # --- NUEVO: manejar branches/jumps decididos en EX ---
+        if ex_result.get('branch_taken'):
+            target = ex_result.get('target_pc')
+            if target is not None:
+                # target puede ser UInt64 o int; aseguramos int al escribir PC
+                new_pc = int(target)
+                # Actualiza PC para el próximo fetch (efecto inmediato)
+                self.rf.write('PC', new_pc)
+                print(f"  🔧 EX → PIPELINE: Branch taken. PC actualizado a 0x{new_pc:016x}")
+            else:
+                print("  🔧 EX → PIPELINE: Branch taken pero target_pc es None (no cambio de PC).")
+        # --- FIN NUEVO manejo de branch ---
+
         # Memory stage
         mem_result = self.memory.execute(ex_result, decoded)
         mem_access_type = "BÓVEDA" if mem_result.get('vault_accessed') else ("MEMORIA" if mem_result.get('memory_accessed') else "NINGUNO")
