@@ -10,7 +10,7 @@ Expectativas importantes:
    rango de la bóveda para verificar accesos prohibidos.
 """
 
-from isa_types import UInt64
+from .isa_types import UInt64
 
 
 # Métricas de seguridad locales
@@ -22,7 +22,7 @@ def _validate_and_wrap(addr):
     """
     Helper interno: valida dirección contra la bóveda y retorna UInt64.
     """
-    from isa_definition import VAULT_ADDR_RANGE  # rango centralizado de la bóveda
+    from .isa_definition import VAULT_ADDR_RANGE  # rango centralizado de la bóveda
     validate_address(addr, VAULT_ADDR_RANGE)
     return UInt64(addr)
 

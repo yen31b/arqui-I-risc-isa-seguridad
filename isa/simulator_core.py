@@ -1,11 +1,10 @@
-from isa_definition import (
+from .isa_definition import (
     get_field_value, OPCODES, INST_FORMATS,
-    apply_addressing_mode, instruction_to_string
+    apply_addressing_mode, instruction_to_string, VAULT_ADDR_RANGE
 )
-from isa_types import UInt64
-from register_file import register_file
-from addressing_modes import validate_address
-from isa_definition import VAULT_ADDR_RANGE
+from .isa_types import UInt64
+from .register_file import register_file
+from .addressing_modes import validate_address
 
 # Simulación de memoria simple (diccionario)
 MEMORY = {}

@@ -10,8 +10,8 @@ Notas de diseño:
  - dump_registers() devuelve un diccionario de enteros (útil para tests y logs).
 """
 import warnings
-from isa_types import UInt64
-from isa_definition import REGISTERS_DECISION
+from .isa_types import UInt64
+from .isa_definition import REGISTERS_DECISION
 
 class register_file:
     """

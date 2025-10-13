@@ -1,5 +1,5 @@
 # isa_definition.py
-import addressing_modes as addr_modes
+from . import addressing_modes as addr_modes
 
 # =============================================================================
 # FORMATOS DE INSTRUCCIÓN (32 bits)

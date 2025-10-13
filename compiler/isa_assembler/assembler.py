@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Sequence, Tuple
 
-import isa_definition as ISA
+from isa import isa_definition as ISA
 
 COMMENT_MARKERS: Tuple[str, ...] = ("#", ";", "//")
 
@@ -71,6 +71,21 @@ for name, index in ISA.VAULT_SLOTS.items():
     VAULT_SLOT_MAP[upper] = index
     VAULT_SLOT_MAP[upper.replace("_", "")] = index
 REGISTER_MAP = {name.upper(): value for name, value in ISA.REGISTERS.items()}
+
+SYMBOLIC_CONSTANTS: Dict[str, int] = {}
+
+def _register_constant(name: str, value: int) -> None:
+    upper = name.upper()
+    SYMBOLIC_CONSTANTS[upper] = int(value)
+    SYMBOLIC_CONSTANTS[upper.replace("_", "")] = int(value)
+
+
+for mapping in (
+    getattr(ISA, "TOYMDMA_CONSTANTS", {}),
+    getattr(ISA, "VAULT_SLOTS", {}),
+):
+    for const_name, const_value in mapping.items():
+        _register_constant(const_name, const_value)
 
 R_TYPE_OPERAND_COUNTS: Dict[str, int] = {mnemonic: 3 for mnemonic in R_TYPE_OPS}
 R_TYPE_OPERAND_COUNTS["NONLIN"] = 2
@@ -392,6 +407,11 @@ class Assembler:
         allow_label: bool = False,
     ) -> int:
         token_clean = token.replace("_", "")
+        key_upper = token_clean.upper()
+
+        if key_upper in SYMBOLIC_CONSTANTS:
+            return SYMBOLIC_CONSTANTS[key_upper]
+
         if allow_label and labels is not None:
             label_key = token_clean.upper()
             if label_key in labels:

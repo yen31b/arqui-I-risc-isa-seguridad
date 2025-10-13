@@ -10,8 +10,8 @@ Funciones principales:
  - nonlin(x): función no lineal determinista
  - apply_block(state, block): aplica un bloque sobre Vec4x64
 """
-from isa_types import UInt64, Vec4x64
-from isa_definition import TOYMDMA_CONSTANTS
+from .isa_types import UInt64, Vec4x64
+from .isa_definition import TOYMDMA_CONSTANTS
 
 MASK64 = 0xFFFFFFFFFFFFFFFF
 
