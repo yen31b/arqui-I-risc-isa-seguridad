@@ -43,6 +43,8 @@ R_TYPE_OPS = {
     "MODADD",
     "ROTL",
     "ROTR",
+    "SHIFTL",
+    "SHIFTR",
     "NONLIN",
     "CALC_F",
     "CALC_G",

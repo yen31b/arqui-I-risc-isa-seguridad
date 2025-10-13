@@ -3,9 +3,9 @@ import textwrap
 import unittest
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[2] / "isa"))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-import isa_definition as ISA
+from isa import isa_definition as ISA
 
 from compiler.isa_assembler import Assembler, AssemblyError, format_words
 
@@ -116,6 +116,22 @@ class IsaAssemblerTestCase(unittest.TestCase):
             ISA.encode_instruction("R_TYPE", opcode=ISA.OPCODES['CALC_H'], rd=13, rs1=14, rs2=15, funct=0),
             ISA.encode_instruction("R_TYPE", opcode=ISA.OPCODES['NONLIN'], rd=16, rs1=17, rs2=0, funct=0),
         ]
+        self.assertEqual(words, expected)
+
+    def test_shift_instructions(self) -> None:
+        source = textwrap.dedent(
+            """
+                SHIFTL R1, R2, R3
+                SHIFTR R4, R5, R6
+            """
+        )
+        words = self.asm.assemble(source)
+
+        expected = [
+            ISA.encode_instruction("R_TYPE", opcode=ISA.OPCODES['SHIFTL'], rd=1, rs1=2, rs2=3, funct=0),
+            ISA.encode_instruction("R_TYPE", opcode=ISA.OPCODES['SHIFTR'], rd=4, rs1=5, rs2=6, funct=0),
+        ]
+
         self.assertEqual(words, expected)
 
     def test_update_instruction_encoding(self) -> None:
