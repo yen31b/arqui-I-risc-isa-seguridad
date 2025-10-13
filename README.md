@@ -184,3 +184,25 @@
 - `MemoryStage` debe devolver `vault_accessed` explícito y `DataMemory` debe incrementar `security_blocks` cuando bloquea accesos.
 
 ---
+# Ensamblador de ISA definido
+
+`compiler/isa_assembler` es el archivo que realiza la lectura del archivo ASM, compila usando la definición de ISA (`isa/`). 
+
+Para ensamblar un programa se puede hacer por estos comandos:
+
+```Comandos para compilar 
+
+python -m compiler.isa_assembler.cli ruta\al\programa.asm -f hex --emit-address
+
+Para compilar y generar el .txt:
+
+python -m compiler.isa_assembler.cli ruta\al\programa.asm --format hex -o programa.txt
+
+```
+
+La herramienta entiende etiquetas, saltos, modos de direccionamiento y
+operaciones especiales (bóveda, hash) usando los valores declarados en
+`isa_definition.py`. El comando de ayuda `python -m compiler.isa_assembler.cli -h`
+describe las opciones disponibles.
+
+---
