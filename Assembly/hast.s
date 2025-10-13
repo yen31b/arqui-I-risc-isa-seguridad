@@ -5,6 +5,7 @@ HASH_INIT
 HASH_BLOCK
 
 // Preparar desplazamientos y máscaras para construir constantes de 64 bits
+ADDI R1, R2, 30
 LOADI R18, 16                // shift de 16 bits
 LOADI R19, 48                // shift de 48 bits
 LOADI R22, 32                // shift de 32 bits
@@ -18,6 +19,8 @@ LOADI R20, -0x61C9           // segmento alto 0x9E37
 AND R20, R20, R30
 OR R1, R1, R20
 SHIFTL R1, R1, R18
+
+ADDI R19, R1, 30
 
 LOADI R20, 0x79B9
 AND R20, R20, R30

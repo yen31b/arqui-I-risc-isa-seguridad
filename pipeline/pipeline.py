@@ -7,6 +7,9 @@ Responsabilidad:
  - Ejecutar instrucciones paso a paso.
  - Recolectar métricas globales.
 """
+import io
+import contextlib
+
 from vault.vault_interface import VaultInterface
 from isa.isa_definition import INSTRUCTION_FORMAT_DECISION
 from isa.isa_types import UInt64, Vec4x64
@@ -103,23 +106,100 @@ class Pipeline:
         return Vec4x64([a, b, c, d])
 
     def run(self, max_cycles=None):
-        instr_size = INSTRUCTION_FORMAT_DECISION['width_bits'] // 8
-        total_instr = len(self.instr_mem.instructions)
-        max_cycles = max_cycles or total_instr
-        print("🚀 Iniciando pipeline...")
-        for i in range(max_cycles):
-            try:
-                self.step()
-            except IndexError:
-                print("✅ Fin de instrucciones.")
+        """Modo interactivo:
+           1 → Avanzar un ciclo
+           2 → Ejecutar hasta fin (sin detalle)
+           3 → Mostrar todos los registros
+           q → Salir
+        """
+        print("🚦 Modo interactivo:")
+        print("   1 → Avanzar un ciclo")
+        print("   2 → Ejecutar hasta el final (sin detalle)")
+        print("   3 → Mostrar todos los registros actuales")
+        print("   q → Salir\n")
+
+        while True:
+            choice = input("Opción (1/2/3/q): ").strip()
+            if choice == '1':
+                try:
+                    self.step()
+                except IndexError:
+                    print("✅ Fin de instrucciones.")
+                    break
+                except PermissionError as e:
+                    print(f"🛑 VIOLACIÓN DE SEGURIDAD: {e}")
+                    break
+                except Exception as e:
+                    print(f"❌ Error en ciclo {self.cycle+1}: {e}")
+                    break
+
+            elif choice == '2':
+                # Calcula cuántos ciclos faltan
+                total_instr = len(self.instr_mem.instructions)
+                max_cycles = max_cycles or total_instr
+
+                # Redirigimos toda la salida de print() a un buffer
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    for _ in range(max_cycles):
+                        try:
+                            self.step()
+                        except IndexError:
+                            # fin normal
+                            break
+                        except PermissionError as e:
+                            # violación de seguridad
+                            break
+                        except Exception:
+                            # cualquier otro error corta el bucle
+                            break
+
+                # Sólo un mensaje al final
+                print(f"\n🚀 Ejecución completa: {self.cycle} ciclos ejecutados, "
+                      f"{len(self.completed)} instrucciones procesadas.")
+                """
+                # Reutilizamos run() para terminar y mostrar reporte final
+                instr_size = INSTRUCTION_FORMAT_DECISION['width_bits'] // 8
+                total_instr = len(self.instr_mem.instructions)
+                max_cycles = max_cycles or total_instr
+                #print("🚀 Iniciando pipeline...")
+                for i in range(max_cycles):
+                    try:
+                        self.step()
+                    except IndexError:
+                        print("✅ Fin de instrucciones.")
+                        break
+                    except PermissionError as e:
+                        print(f"🛑 VIOLACIÓN DE SEGURIDAD: {e}")
+                        break
+                    except Exception as e:
+                        print(f"❌ Error en ciclo {i+1}: {e}")
+                        break
+                        """
+                # Mostrar todos los registros (incluso ceros)
+                regs = self.rf.dump_registers()
+                print("\n📋 Estado completo de registros:")
+                for name, val in regs.items():
+                    print(f"   - {name}: 0x{val:016x}")
+                print("")  # línea en blanco de separación
+                
+                self._print_final_report()
                 break
-            except PermissionError as e:
-                print(f"🛑 VIOLACIÓN DE SEGURIDAD: {e}")
+
+            elif choice == '3':
+                # Mostrar todos los registros (incluso ceros)
+                regs = self.rf.dump_registers()
+                print("\n📋 Estado completo de registros:")
+                for name, val in regs.items():
+                    print(f"   - {name}: 0x{val:016x}")
+                print("")  # línea en blanco de separación
+
+            elif choice.lower() == 'q':
+                print("✋ Modo interactivo finalizado.")
                 break
-            except Exception as e:
-                print(f"❌ Error en ciclo {i+1}: {e}")
-                break
-        self._print_final_report()
+
+            else:
+                print("⚠️  Opción no válida. Ingresa 1, 2 o q.\n")
 
     def _print_final_report(self):
         print(f"\n{'='*60}")
