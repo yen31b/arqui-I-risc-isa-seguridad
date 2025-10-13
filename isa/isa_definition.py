@@ -87,6 +87,18 @@ OPCODES = {
     'UPDATE_B': 0x3B,
     'UPDATE_C': 0x3C,
     'UPDATE_D': 0x3D,
+
+    # --- añadidos: operaciones de bóveda y hash específicas ---
+    'VLOAD':  0b010001,   # (lectura administrativa / alias)
+    'KVW':    0b010011,   # write autorizado a bóveda (alias interno)
+    'KVL':    0b010110,   # lectura controlada de bóveda
+    'KVOP':   0b010111,   # operación en llave mediante handle
+    'SGEN':   0b011011,   # generación de firma atómica en bóveda
+
+    # --- añadidos: operaciones de mezcla/no-lineal para ToyMDMA ---
+    'MIXMUL': 0b100011,
+    'MODADD': 0b100111,
+    'NONLIN': 0b101000,
 }
 
 # =============================================================================
@@ -250,6 +262,14 @@ INSTRUCTION_ADDRESSING_MODES = {
     'VSTORE': 'REG',
     'VINIT': 'REG',
     'SIGN': 'REG',
+    'VLOAD': 'REG',
+    'KVW': 'REG',
+    'KVL': 'REG',
+    'KVOP': 'REG',
+    'SGEN': 'REG',
+    'MIXMUL': 'R_TYPE',
+    'MODADD': 'R_TYPE',
+    'NONLIN': 'R_TYPE',
 }
 
 ADDRESSING_MODE_FORMAT_MAP = {
@@ -270,11 +290,6 @@ HASH_INSTR_NAMES = [
     'UPDATE_A', 'UPDATE_B', 'UPDATE_C', 'UPDATE_D'
 ]
 
-# Instrucciones de la bóveda (operan sin exponer llaves)
-# → KVW: guardar una llave en la bóveda
-# → KVL: cargar valores iniciales del hash desde la bóveda (uso atómico)
-# → KVOP: operar con una llave dentro de la bóveda sin sacarla
-VAULT_INSTR_NAMES = ['KVW', 'KVL', 'KVOP']
 
 # =============================================================================
 # CONSTANTES PARA BÓVEDA (centralizadas)
@@ -354,7 +369,3 @@ def apply_addressing_mode(instr_name, registers, **kwargs):
         addr_modes.validate_address(addr, vault_range)
 
     return addr
-
-# =============================================================================
-# FIN: decisiones agregadas (solo lo pedido)
-# =============================================================================
