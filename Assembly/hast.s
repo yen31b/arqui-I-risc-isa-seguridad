@@ -2,7 +2,9 @@
 
 // Carga los valores iniciales desde bodega
 HASH_INIT
-HASH_BLOCK
+LOADI R1, 0
+LOAD R25, 0(R1) // TRAE de mem el cont de bloques
+HASH_BLOCK R3// quita el contador de bloques
 
 // Preparar desplazamientos y máscaras para construir constantes de 64 bits
 LOADI R18, 16                // shift de 16 bits
@@ -45,6 +47,12 @@ ADDI R12, R12, -4            // R12 = 0x0000_0000_FFFF_FFFB
 // Máscara completa de 64 bits
 LOADI R31, -1                // R31 = 0xFFFF_FFFF_FFFF_FFFF
 
+
+LOADI R27, 1
+LOADI R26, 0
+etiqueta: 
+HASH_BLOCK R3
+
 // 2. Mezcla No Lineal (f, g, h)
 
 CALC_F R15, R8, R9        // R15 = f = (A & B) ^ (A & C)
@@ -64,6 +72,12 @@ UPDATE_C R10, R10, R16, R17, R11
 UPDATE_D R11, R11, R8, R3, R15
 
 
-// Exporta el estado final
+SUB R25, R25, R27
+BEQ R25, R26, etiqueta
 
-hash_final
+// Exporta el estado final
+hash_final R8
+
+
+// Firma de documento
+SGEN R12, 0, R8
