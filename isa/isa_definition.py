@@ -99,6 +99,8 @@ OPCODES = {
     'MIXMUL': 0b100011,
     'MODADD': 0b100111,
     'NONLIN': 0b101000,
+    'SHIFTL': 0b101001,
+    'SHIFTR': 0b101010,
 }
 
 # =============================================================================
@@ -262,6 +264,8 @@ INSTRUCTION_ADDRESSING_MODES = {
     'VSTORE': 'REG',
     'VINIT': 'REG',
     'SIGN': 'REG',
+}
+INSTRUCTION_ADDRESSING_MODES.update({
     'VLOAD': 'REG',
     'KVW': 'REG',
     'KVL': 'REG',
@@ -270,7 +274,9 @@ INSTRUCTION_ADDRESSING_MODES = {
     'MIXMUL': 'R_TYPE',
     'MODADD': 'R_TYPE',
     'NONLIN': 'R_TYPE',
-}
+    'SHIFTL': 'REG',
+    'SHIFTR': 'REG',
+})
 
 ADDRESSING_MODE_FORMAT_MAP = {
     'REG': ['R_TYPE', 'V_TYPE'],

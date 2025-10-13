@@ -65,6 +65,7 @@ class DecodeStage:
             'is_arithmetic': opcode_name in ['ADD', 'SUB', 'AND', 'OR', 'XOR', 'ADDI', 'ANDI'],
             'is_modular': opcode_name in ['MOD', 'MODADD', 'MULMOD'],
             'is_nonlin': opcode_name in ['NONLIN', 'ROTL', 'ROTR'],
+            'is_shift': opcode_name in ['SHIFTL', 'SHIFTR'],
             'needs_imm': format_type in ['I_TYPE', 'S_TYPE'],
             'addressing_mode': INSTRUCTION_ADDRESSING_MODES.get(opcode_name, None)
         }
@@ -87,6 +88,8 @@ class DecodeStage:
             'ADD': 'R_TYPE', 'SUB': 'R_TYPE', 'AND': 'R_TYPE', 'OR': 'R_TYPE', 
             'XOR': 'R_TYPE', 'MUL': 'R_TYPE', 'MOD': 'R_TYPE', 'MULMOD': 'R_TYPE',
             'ROTL': 'R_TYPE', 'ROTR': 'R_TYPE',
+            # Añadidos shifts
+            'SHIFTL': 'R_TYPE', 'SHIFTR': 'R_TYPE',
             # S_TYPE
             'STORE': 'S_TYPE', 'BEQ': 'S_TYPE', 'BNE': 'S_TYPE', 'BLT': 'S_TYPE',
             # V_TYPE
