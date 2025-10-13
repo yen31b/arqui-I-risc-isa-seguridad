@@ -13,13 +13,10 @@ Auditoría:
  - Contadores de reads/writes/ops/violations.
  - Cada intento inválido incrementa 'violations'.
 """
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-
 from typing import Dict, Optional
-from isa_types import UInt64, Vec4x64
-from isa_definition import VAULT_SLOTS  # dict de slots definidos p.ej. {"K0": {}, "K1": {}}
+
+from isa.isa_types import UInt64, Vec4x64
+from isa.isa_definition import VAULT_SLOTS  # dict de slots definidos p.ej. {"K0": {}, "K1": {}}
 
 class VaultAccessError(Exception):
     pass

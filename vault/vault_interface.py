@@ -9,14 +9,11 @@ Responsabilidad:
  - No exponer llaves en claro; operar mediante handles
 """
 
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-
 from typing import Optional, Dict, Any
-from vault import KeyVault, VaultAccessError, KeyHandle
-from isa_types import UInt64, Vec4x64
-from isa_definition import VAULT_SLOTS  # dict de nombres de slots canónicos
+
+from .vault import KeyVault, VaultAccessError, KeyHandle
+from isa.isa_types import UInt64, Vec4x64
+from isa.isa_definition import VAULT_SLOTS  # dict de nombres de slots canónicos
 
 
 class VaultInterface:

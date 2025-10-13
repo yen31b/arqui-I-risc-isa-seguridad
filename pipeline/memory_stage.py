@@ -8,12 +8,8 @@ Responsabilidad:
  - Interactuar con la bóveda para operaciones KV*
  - Recolectar métricas de seguridad
 """
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vault')))
-from vault_interface import VaultInterface
-from isa_types import UInt64, Vec4x64
+from vault.vault_interface import VaultInterface
+from isa.isa_types import UInt64, Vec4x64
 
 class DataMemory:
     def __init__(self, size=1024, vault_range=(0x1000, 0x1FFF)):

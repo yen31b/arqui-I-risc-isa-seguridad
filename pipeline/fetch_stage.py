@@ -7,12 +7,8 @@ Responsabilidad:
  - Incrementar el PC.
  - Entregar la instrucción binaria a la etapa de decodificación.
 """
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-
-from isa_definition import INSTRUCTION_FORMAT_DECISION
-from register_file import register_file
+from isa.isa_definition import INSTRUCTION_FORMAT_DECISION
+from isa.register_file import register_file
 
 
 class InstructionMemory:

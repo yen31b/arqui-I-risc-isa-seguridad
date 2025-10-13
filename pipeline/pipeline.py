@@ -7,19 +7,15 @@ Responsabilidad:
  - Ejecutar instrucciones paso a paso.
  - Recolectar métricas globales.
 """
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vault')))
-from vault_interface import VaultInterface
-from isa_definition import INSTRUCTION_FORMAT_DECISION
-from isa_types import UInt64, Vec4x64
-from register_file import register_file
-from fetch_stage import InstructionMemory, FetchStage
-from decode_stage import DecodeStage
-from execute_stage import ExecuteStage
-from memory_stage import MemoryStage, DataMemory
-from writeback_stage import WriteBackStage
+from vault.vault_interface import VaultInterface
+from isa.isa_definition import INSTRUCTION_FORMAT_DECISION
+from isa.isa_types import UInt64, Vec4x64
+from isa.register_file import register_file
+from .fetch_stage import InstructionMemory, FetchStage
+from .decode_stage import DecodeStage
+from .execute_stage import ExecuteStage
+from .memory_stage import MemoryStage, DataMemory
+from .writeback_stage import WriteBackStage
 
 class Pipeline:
     def __init__(self, instructions):
@@ -33,7 +29,7 @@ class Pipeline:
         self.fetch = FetchStage(self.rf, self.instr_mem)
         self.decode = DecodeStage(self.rf)
         # pasar vault_if a las etapas que lo necesitan
-        self.execute = ExecuteStage(vault_if=self.vault_if)
+        self.execute = ExecuteStage(vault_if=self.vault_if, rf=self.rf)
         self.memory = MemoryStage(self.data_mem, vault_if=self.vault_if)
         self.writeback = WriteBackStage(self.rf)
 

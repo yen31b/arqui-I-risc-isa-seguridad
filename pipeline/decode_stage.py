@@ -3,18 +3,14 @@
 """
 Etapa ID (Instruction Decode) del pipeline.
 """
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-
-from isa_definition import (
+from isa.isa_definition import (
     get_field_value,
     INST_FORMATS,
     OPCODES,
     INSTRUCTION_ADDRESSING_MODES,
     VAULT_INSTR_NAMES
 )
-from register_file import register_file
+from isa.register_file import register_file
 
 
 class DecodeStage:

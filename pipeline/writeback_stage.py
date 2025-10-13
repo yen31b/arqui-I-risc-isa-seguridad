@@ -6,12 +6,8 @@ Responsabilidad:
  - Manejar resultados especiales (firmas, estados hash)
  - Recolectar métricas de escritura y seguridad
 """
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-
-from isa_types import UInt64, Vec4x64
-from register_file import register_file
+from isa.isa_types import UInt64, Vec4x64
+from isa.register_file import register_file
 
 class WriteBackStage:
     def __init__(self, register_file: register_file):

@@ -7,14 +7,10 @@ Responsabilidad:
  - Recibir operandos y señales de control desde la etapa ID.
  - Retornar resultado para MEM/WB y métricas de ejecución.
 """
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vault')))
-from vault_interface import VaultInterface
-from isa_types import UInt64, Vec4x64
-from hash_accel import mixmul, modadd, nonlin
-from isa_definition import TOYMDMA_CONSTANTS
+from vault.vault_interface import VaultInterface
+from isa.isa_types import UInt64, Vec4x64
+from isa.hash_accel import mixmul, modadd, nonlin
+from isa.isa_definition import TOYMDMA_CONSTANTS
 
 class ExecuteStage:
     def __init__(self, vault_if: VaultInterface | None = None, rf = None):
