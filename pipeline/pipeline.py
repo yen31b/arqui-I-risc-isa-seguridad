@@ -46,6 +46,17 @@ class Pipeline:
             # No bloquear creación de pipeline si algo falla; solo advertir.
             print(f"  ⚠️ PIPELINE: No se pudieron inicializar IVs en bóveda: {e}")
 
+        # --- Opcional: Inicializar KEY_0 con una llave de prueba para SGEN/VERIFY ---
+        try:
+            if 'KEY_0' in VAULT_SLOTS:
+                kidx = VAULT_SLOTS['KEY_0']
+                kval = TOYMDMA_CONSTANTS.get('INITIAL_A')
+                if kval is not None:
+                    self.vault_if.execute_vault_operation('KVW', kidx, value=kval)
+                    print(f"  🔐 PIPELINE: Inicializado KEY_0 (idx={kidx}) <- 0x{int(kval):016x}")
+        except Exception as e:
+            print(f"  ⚠️ PIPELINE: No se pudo inicializar KEY_0: {e}")
+
         self.fetch = FetchStage(self.rf, self.instr_mem)
         self.decode = DecodeStage(self.rf)
         # pasar vault_if a las etapas que lo necesitan
@@ -84,6 +95,14 @@ class Pipeline:
             else:
                 print("  🔧 EX → PIPELINE: Branch taken pero target_pc es None (no cambio de PC).")
         # --- FIN NUEVO manejo de branch ---
+
+        # --- NUEVO: si EX ya accedió a la bóveda, reflejarlo en métricas de DataMemory ---
+        if ex_result.get('vault_signal'):
+            try:
+                self.data_mem.metrics['vault_accesses'] = self.data_mem.metrics.get('vault_accesses', 0) + 1
+            except Exception:
+                pass
+        # --- FIN NUEVO ---
 
         # Memory stage
         mem_result = self.memory.execute(ex_result, decoded)

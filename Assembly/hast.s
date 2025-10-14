@@ -78,9 +78,11 @@ BEQ R25, R26, etiqueta
 // Exporta el estado final
 hash_final R8
 
+// Inicializar KEY_0 para firma (evita "Slot KEY_0 no inicializado")
+VINIT  0, R4
 
 // Firma de documento
-SGEN 0, R8, R12
+SGEN   0, R8, R12
 
 #######################################################################
 # Test: Carga de archivo (loader.py) + HASH_INIT/BLOCK/FINAL
