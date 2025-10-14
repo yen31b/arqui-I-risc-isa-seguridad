@@ -358,6 +358,39 @@ class ExecuteStage:
             latency = 1
             print(f"  🔧 EX: SHIFTR {a_val} >> {shift} = {result}")
 
+        # --- Nuevas: UPDATE_A/B/C/D (usando funct = (rs3<<5) | rs4) ---
+        elif opcode in ('UPDATE_A', 'UPDATE_B', 'UPDATE_C', 'UPDATE_D'):
+            self._require_rf(opcode)
+            MASK64 = 0xFFFFFFFFFFFFFFFF
+            # funct codifica dos registros: rs3 y rs4 (5 bits cada uno)
+            rs3rs4 = int(ops.get('funct', 0))
+            rs3_idx = (rs3rs4 >> 5) & 0x1F
+            rs4_idx = rs3rs4 & 0x1F
+            v3 = int(self.rf.read(f"R{rs3_idx}"))
+            v4 = int(self.rf.read(f"R{rs4_idx}"))
+            # temp = rs1_val + rs2_val + rs3
+            temp = (a_val + b_val + v3) & MASK64
+            # rotación según la instrucción
+            rot_map = {
+                'UPDATE_A': 7,
+                'UPDATE_B': 11,
+                'UPDATE_C': 17,
+                'UPDATE_D': 19,
+            }
+            r = rot_map[opcode]
+            rot = ((temp << r) | (temp >> (64 - r))) & MASK64
+            if opcode == 'UPDATE_A':
+                res = (rot + v4) & MASK64
+            elif opcode == 'UPDATE_B':
+                res = (rot + (v4 * 3)) & MASK64
+            elif opcode == 'UPDATE_C':
+                prime = TOYMDMA_CONSTANTS.get('PRIME_MOD', 0xFFFFFFFFFFFFFFFF)
+                res = (rot + (v4 % int(prime))) & MASK64
+            else:  # UPDATE_D
+                res = (rot ^ (v4 * 5)) & MASK64
+            result = UInt64(res)
+            latency = 3
+            print(f"  🔧 EX: {opcode} -> {result} (rs3=R{rs3_idx}, rs4=R{rs4_idx})")
         # Mezclas no lineales personalizadas (requieren rf)
         elif opcode == 'CALC_F':
             self._require_rf(opcode)
