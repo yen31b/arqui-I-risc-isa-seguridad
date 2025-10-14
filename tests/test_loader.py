@@ -190,9 +190,10 @@ def _run_debug(p: Pipeline):
     print("  1 → Avanzar 1 ciclo")
     print("  2 → Ejecutar hasta el final (salir del modo debug)")
     print("  3 → Ver registros y memoria")
+    print("  4 → Ver sólo memoria")
     print("  q → Salir del modo debug (sin continuar)")
     while True:
-        choice = input("Opción (1/2/3/q): ").strip().lower()
+        choice = input("Opción (1/2/3/4/q): ").strip().lower()
         if choice == '1':
             try:
                 p.step()
@@ -212,6 +213,8 @@ def _run_debug(p: Pipeline):
         elif choice == '3':
             _dump_registers(p)
             _dump_memory(p.data_mem, header_base=0, max_blocks=8)
+        elif choice == '4':
+            _dump_memory(p.data_mem, header_base=0, max_blocks=32)
         elif choice == 'q':
             print("[test_loader] Saliendo de modo debug sin continuar.")
             break

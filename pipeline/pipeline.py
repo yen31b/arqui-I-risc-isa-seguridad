@@ -164,18 +164,20 @@ class Pipeline:
     def run(self, max_cycles=None):
         """Modo interactivo:
            1 → Avanzar un ciclo
-           2 → Ejecutar hasta fin (sin detalle)
+           2 → Ejecutar hasta el final (sin detalle)
            3 → Mostrar todos los registros
+           4 → Ver la memoria (DataMemory dump)
            q → Salir
         """
         print("🚦 Modo interactivo:")
         print("   1 → Avanzar un ciclo")
         print("   2 → Ejecutar hasta el final (sin detalle)")
         print("   3 → Mostrar todos los registros actuales")
+        print("   4 → Ver la memoria (DataMemory dump)")
         print("   q → Salir\n")
 
         while True:
-            choice = input("Opción (1/2/3/q): ").strip()
+            choice = input("Opción (1/2/3/4/q): ").strip()
             if choice == '1':
                 try:
                     self.step()
@@ -250,12 +252,22 @@ class Pipeline:
                     print(f"   - {name}: 0x{val:016x}")
                 print("")  # línea en blanco de separación
 
+            elif choice == '4':
+                # Usar helper público para volcar DataMemory
+                try:
+                    print("")  # separación visual
+                    self.dump_data_memory()
+                except Exception as e:
+                    print(f"  ⚠️ Error mostrando DataMemory: {e}")
+                print("")  # separación
+                continue
+
             elif choice.lower() == 'q':
                 print("✋ Modo interactivo finalizado.")
                 break
 
             else:
-                print("⚠️  Opción no válida. Ingresa 1, 2 o q.\n")
+                print("⚠️  Opción no válida. Ingresa 1, 2, 3, 4 o q.\n")
 
     def _print_final_report(self):
         print(f"\n{'='*60}")
@@ -313,3 +325,25 @@ class Pipeline:
     def get_cycle(self):
         """Retorna el número de ciclos ejecutados."""
         return self.cycle
+
+    def dump_data_memory(self, start_addr: int | None = None, end_addr: int | None = None, max_entries: int = 200):
+        """Helper público para volcar DataMemory programáticamente."""
+        try:
+            mem = getattr(self.data_mem, 'memory', {})
+            if not mem:
+                print("[Pipeline] DataMemory vacía.")
+                return {}
+            keys = sorted(k for k in mem.keys() if (start_addr is None or k >= int(start_addr)) and (end_addr is None or k <= int(end_addr)))
+            out = {}
+            print(f"[Pipeline] Dump DataMemory (mostrando hasta {max_entries} entradas):")
+            for i, a in enumerate(keys):
+                if i >= max_entries:
+                    print(f"  ... ({len(keys)-max_entries} entradas omitidas)")
+                    break
+                v = int(mem[a])
+                print(f"  0x{int(a):04x} -> 0x{v:016x}")
+                out[int(a)] = v
+            return out
+        except Exception as e:
+            print(f"[Pipeline] Error en dump_data_memory: {e}")
+            return {}
