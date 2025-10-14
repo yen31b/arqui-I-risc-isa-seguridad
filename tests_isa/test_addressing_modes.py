@@ -1,22 +1,23 @@
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', 'isa')))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.append(ROOT)
 
-from register_file import register_file
-from isa_types import UInt64
-from addressing_modes import (
+from isa.register_file import register_file
+from isa.isa_types import UInt64
+from isa.addressing_modes import (
     mode_REG, mode_REG_IMM, mode_BASE_DISP, mode_IMM_LONG,
     validate_address, describe_addressing, get_security_metrics
 )
-from isa_definition import VAULT_ADDR_RANGE
+from isa.isa_definition import VAULT_ADDR_RANGE
 
 
 def test_mode_REG():
     rf = register_file()
     rf.write('R1', UInt64(0x5000))
     result = mode_REG(rf, 'R1')
-    print("test_mode_REG:", "PASSED" if result == 0x5000 else f"FAILED (got {result})")
+    print("test_mode_REG:", "PASSED" if int(result) == 0x5000 else f"FAILED (got {result})")
 
 
 def test_mode_REG_IMM():
@@ -24,7 +25,7 @@ def test_mode_REG_IMM():
     rf.write('R2', UInt64(0x2000))
     result = mode_REG_IMM(rf, 'R2', 0x30)
     expected = 0x2030
-    print("test_mode_REG_IMM:", "PASSED" if result == expected else f"FAILED (got {result})")
+    print("test_mode_REG_IMM:", "PASSED" if int(result) == expected else f"FAILED (got {result})")
 
 
 def test_mode_BASE_DISP():
@@ -33,13 +34,13 @@ def test_mode_BASE_DISP():
     rf.write('R4', UInt64(0x40))
     result = mode_BASE_DISP(rf, 'R3', 'R4')
     expected = 0x3040
-    print("test_mode_BASE_DISP:", "PASSED" if result == expected else f"FAILED (got {result})")
+    print("test_mode_BASE_DISP:", "PASSED" if int(result) == expected else f"FAILED (got {result})")
 
 
 def test_mode_IMM_LONG():
     result = mode_IMM_LONG(0x5000000000000000)
     expected = 0x5000000000000000
-    print("test_mode_IMM_LONG:", "PASSED" if result == expected else f"FAILED (got {result})")
+    print("test_mode_IMM_LONG:", "PASSED" if int(result) == expected else f"FAILED (got {result})")
 
 
 def test_validate_address_safe():

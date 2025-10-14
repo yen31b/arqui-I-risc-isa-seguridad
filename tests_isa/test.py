@@ -1,16 +1,17 @@
 # current_test.py
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vault')))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.append(ROOT)
 
 import traceback
-from register_file import register_file
-from isa_types import UInt64, Vec4x64
-from isa_definition import VAULT_SLOTS, OPCODES, encode_instruction, get_field_value, instruction_to_string
-from keyvault import KeyVault, VaultAccessError
-import addressing_modes as addr_modes
-from hash_accel import mixmul, modadd, nonlin, apply_block
+from isa.register_file import register_file
+from isa.isa_types import UInt64, Vec4x64
+from isa.isa_definition import VAULT_SLOTS, OPCODES, encode_instruction, get_field_value, instruction_to_string
+from vault.vault import KeyVault, VaultAccessError
+from isa import addressing_modes as addr_modes
+from isa.hash_accel import mixmul, modadd, nonlin, apply_block
 
 def _run_and_report(name, fn):
     print("\n" + "-" * 70)
@@ -54,11 +55,19 @@ def vault_tests():
     def t3():
         kv = KeyVault()
         kv.write_slot('KEY_0', 0xA5A5A5A5A5A5A5A5, authorized=True)
-        val = kv.access_slot_for_operation('KEY_0', 'KVL')
-        print("Access returned (int):", hex(int(val)))
-        assert int(val) == 0xA5A5A5A5A5A5A5A5
+        # Compatibilidad: usar API disponible
+        if hasattr(kv, 'access_slot_for_operation'):
+            val = kv.access_slot_for_operation('KEY_0', 'KVL')
+            ival = int(val)
+        else:
+            ival = int(kv.get_handle('KEY_0', 'KVL').xor_scalar(0))
+        print("Access returned (int):", hex(int(ival)))
+        assert int(ival) == 0xA5A5A5A5A5A5A5A5
         try:
-            kv.access_slot_for_operation('KEY_0', 'BAD_OP')
+            if hasattr(kv, 'access_slot_for_operation'):
+                kv.access_slot_for_operation('KEY_0', 'BAD_OP')
+            else:
+                kv.get_handle('KEY_0', 'BAD_OP')
             raise AssertionError("Expected VaultAccessError for BAD_OP")
         except VaultAccessError:
             print("Bad op correctly blocked")

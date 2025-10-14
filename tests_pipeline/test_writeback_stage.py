@@ -3,14 +3,13 @@
 
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', 'isa')))
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', 'pipeline')))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.append(ROOT)
 
-from isa_types import UInt64, Vec4x64
-from register_file import register_file
-from writeback_stage import WriteBackStage
+from isa.isa_types import UInt64, Vec4x64
+from isa.register_file import register_file
+from pipeline.writeback_stage import WriteBackStage
 
 def run_tests():
     rf = register_file()

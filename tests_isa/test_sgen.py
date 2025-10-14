@@ -1,18 +1,18 @@
-
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vault')))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.append(ROOT)
 
 import unittest
-from vault import KeyVault, VaultAccessError
-from isa_types import Vec4x64, UInt64
+from vault.vault import KeyVault, VaultAccessError
+from isa.isa_types import Vec4x64, UInt64
 
 class TestSGEN(unittest.TestCase):
     def setUp(self):
         self.kv = KeyVault()
         self.slot = 'KEY_0'
-        self.state = Vec4x64(0x1, 0x2, 0x3, 0x4)
+        self.state = Vec4x64([0x1, 0x2, 0x3, 0x4])
         self.key = UInt64(0xFF00FF00FF00FF00)
 
     def test_generate_signature_success(self):

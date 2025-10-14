@@ -2,17 +2,18 @@
 
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'pipeline')))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.append(ROOT)
 
-from isa_definition import encode_instruction, OPCODES, INST_FORMATS
-from pipeline import Pipeline
-from register_file import register_file
-from fetch_stage import FetchStage, InstructionMemory
-from decode_stage import DecodeStage
-from execute_stage import ExecuteStage
-from memory_stage import MemoryStage, DataMemory
-from writeback_stage import WriteBackStage
+from isa.isa_definition import encode_instruction, OPCODES, INST_FORMATS
+from pipeline.pipeline import Pipeline
+from isa.register_file import register_file
+from pipeline.fetch_stage import FetchStage, InstructionMemory
+from pipeline.decode_stage import DecodeStage
+from pipeline.execute_stage import ExecuteStage
+from pipeline.memory_stage import MemoryStage, DataMemory
+from pipeline.writeback_stage import WriteBackStage
 
 class ComprehensivePipelineTest:
     def __init__(self):

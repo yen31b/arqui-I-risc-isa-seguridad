@@ -1,12 +1,13 @@
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', 'isa')))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.append(ROOT)
 
-from simulator_core import execute_instruction, MEMORY
-from isa_definition import encode_instruction, OPCODES
-from register_file import register_file
-from isa_types import UInt64
+from isa.simulator_core import execute_instruction, MEMORY
+from isa.isa_definition import encode_instruction, OPCODES
+from isa.register_file import register_file
+from isa.isa_types import UInt64
 
 
 def test_addi():
@@ -34,14 +35,14 @@ def test_load():
 def test_store():
     rf = register_file()
     rf.write('R5', UInt64(0x300))  # base
-    rf.write('R6', UInt64(0x20))   # desplazamiento
+    rf.write('R6', UInt64(0x20))   # desplazamiento (no usado si el simulador emplea imm)
     rf.write('R7', UInt64(0xBEEF1234567890AB))  # valor a almacenar
 
     instr = encode_instruction(
-        'S_TYPE', opcode=OPCODES['STORE'], rs1=5, rs2=7, imm=0x0)
+        'S_TYPE', opcode=OPCODES['STORE'], rs1=5, rs2=7, imm=0x20)
     execute_instruction(instr, rf)
 
-    addr = int(rf.read('R5')) + int(rf.read('R6'))
+    addr = int(rf.read('R5')) + 0x20
     result = MEMORY.get(addr)
     expected = 0xBEEF1234567890AB
     print("test_store:", "PASSED" if result and int(result) == expected else f"FAILED (got {result})")

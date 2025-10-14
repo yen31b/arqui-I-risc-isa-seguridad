@@ -77,11 +77,12 @@ COMMENT_CHARS = ("#", ";", "//")
 class Assembler:
     """Traduce líneas de texto ensamblador a palabras binarias de 32 bits."""
 
-    def assemble(self, source: str) -> List[int]:
-        parsed, labels = self._first_pass(source)
+    def assemble(self, source: str) -> list[int]:
+        parsed_lines, labels = self._first_pass(source)
         words: List[int] = []
-        for pc, line in enumerate(parsed):
+        for pc, line in enumerate(parsed_lines):
             words.append(self._encode(line, labels, pc))
+            pc += 1
         return words
 
     def assemble_to_strings(self, source: str) -> List[str]:
@@ -140,15 +141,14 @@ class Assembler:
 
     # ------------------ codificación ------------------
 
-    def _encode(self, line: ParsedLine, labels: Dict[str, int], pc: int) -> int:
+    def _encode(self, line, labels, pc: int) -> int:
         spec = INSTRUCTION_SET.get(line.mnemonic)
         if spec is None:
             raise AssemblyError(f"Instrucción desconocida '{line.mnemonic}'", line_no=line.line_no, line_text=line.raw)
 
-        if spec.fmt == "W":
-            if len(line.operands) != 1:
-                raise AssemblyError(".word espera un operando", line_no=line.line_no, line_text=line.raw)
-            value = self._resolve_value(line.operands[0], labels, bits=32, signed=True, current_pc=pc, line=line)
+        # Directiva .word: aceptar valores sin signo de 32 bits
+        if getattr(line, "is_directive", False) and str(line.opcode).lower() == ".word":
+            value = self._resolve_value(line.operands[0], labels, bits=32, signed=False, current_pc=pc, line=line)
             return value & 0xFFFFFFFF
 
         opcode = spec.opcode << 28
@@ -211,28 +211,37 @@ class Assembler:
 
     def _resolve_value(
         self,
-        token: str,
-        labels: Dict[str, int],
+        token,
+        labels,
         *,
-        bits: int,
-        signed: bool,
-        current_pc: int,
-        line: ParsedLine,
+        bits: int = 32,
+        signed: bool = True,
+        current_pc: int | None = None,
+        line=None,
     ) -> int:
+        """
+        Resuelve un operando inmediato/etiqueta a entero, aplicando validaciones de rango.
+        - bits: ancho del campo
+        - signed: True valida rango con signo; False permite 0..(2^bits-1) y enmascara.
+        """
         if token in labels:
             value = labels[token]
         else:
             value = self._parse_int(token, bits=bits, signed=signed)
-        min_val = -(1 << (bits - 1)) if signed else 0
-        max_val = (1 << (bits - 1)) - 1 if signed else (1 << bits) - 1
-        if not (min_val <= value <= max_val):
-            tipo = "con signo" if signed else "sin signo"
+        # Al final, normalizar según signed/unsigned
+        mask = (1 << bits) - 1
+        if not signed:
+            # Modo sin signo: permitir y truncar a 'bits'
+            return int(value) & mask
+        # Modo con signo: validar rango clásico two's complement
+        min_val = -(1 << (bits - 1))
+        max_val = (1 << (bits - 1)) - 1
+        iv = int(value)
+        if iv < min_val or iv > max_val:
             raise AssemblyError(
-                f"Valor fuera de rango ({value}) para {bits} bits {tipo}",
-                line_no=line.line_no,
-                line_text=line.raw,
+                f"Línea {getattr(line, 'line_no', '?')}: Valor fuera de rango ({iv}) para {bits} bits con signo\n    {getattr(line, 'raw', token)}"
             )
-        return value & ((1 << bits) - 1)
+        return iv & mask
 
     def _parse_int(self, token: str, *, bits: int, signed: bool) -> int:
         token_clean = token.replace("_", "")

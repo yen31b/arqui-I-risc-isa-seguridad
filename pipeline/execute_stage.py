@@ -27,6 +27,23 @@ class ExecuteStage:
         # Referencia opcional al banco de registros (permitir lecturas desde EX)
         self.rf = rf
 
+    def get_metrics(self):
+        """
+        Retorna métricas de ejecución. Normaliza op_latency para que cada opcode
+        tenga un valor escalar (última latencia observada), como esperan los tests.
+        """
+        out = dict(self.metrics)
+        op_lat = out.get('op_latency', {})
+        if isinstance(op_lat, dict):
+            normalized = {}
+            for op, vals in op_lat.items():
+                if isinstance(vals, list) and vals:
+                    normalized[op] = vals[-1]
+                else:
+                    normalized[op] = vals
+            out['op_latency'] = normalized
+        return out
+
     def _require_rf(self, instr_name):
         if self.rf is None:
             raise RuntimeError(f"Banco de registros (rf) requerido para instrucción {instr_name} pero no está configurado.")

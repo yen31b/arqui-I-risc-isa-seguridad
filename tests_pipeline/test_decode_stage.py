@@ -2,12 +2,13 @@
 
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'pipeline')))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.append(ROOT)
 
-from isa_definition import encode_instruction, OPCODES, get_field_value, INST_FORMATS
-from decode_stage import DecodeStage
-from register_file import register_file
+from isa.isa_definition import encode_instruction, OPCODES, get_field_value, INST_FORMATS
+from pipeline.decode_stage import DecodeStage
+from isa.register_file import register_file
 
 def test_decode_instruction():
     """Test específico del decode stage"""

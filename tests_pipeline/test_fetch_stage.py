@@ -2,11 +2,13 @@
 
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', 'pipeline')))
+# Asegurar raíz del proyecto en sys.path
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
-from fetch_stage import InstructionMemory, FetchStage
-from register_file import register_file
+from pipeline.fetch_stage import InstructionMemory, FetchStage
+from isa.register_file import register_file
 
 def test_fetch_stage():
     print("🔍 Iniciando test de FetchStage...")

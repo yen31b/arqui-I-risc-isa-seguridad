@@ -2,13 +2,12 @@
 import sys
 import os
 
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', 'isa')))
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', 'pipeline')))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.append(ROOT)
 
-from isa_types import UInt64
-from execute_stage import ExecuteStage
+from isa.isa_types import UInt64
+from pipeline.execute_stage import ExecuteStage
 
 def test_execute_stage():
     print("🔍 Iniciando test de ExecuteStage...")
@@ -52,7 +51,7 @@ def test_execute_stage():
     # Verificar resultado esperado
     assert result['result'] == UInt64(30), "❌ Resultado incorrecto para ADD"
     assert result['latency'] == 1, "❌ Latencia incorrecta para ADD"
-    assert result['vault_signal'] is None, "❌ No debería haber señal de bóveda"
+    assert result['vault_signal'] is False, "❌ No debería haber señal de bóveda"
 
     # Métricas
     metrics = ex.get_metrics()

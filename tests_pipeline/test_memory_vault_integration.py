@@ -3,11 +3,12 @@ import os
 from unittest.mock import Mock
 
 # Asegurar rutas para imports locales
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'pipeline')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.append(ROOT)
 
-from memory_stage import DataMemory, MemoryStage
-from isa_types import UInt64
+from pipeline.memory_stage import DataMemory, MemoryStage
+from isa.isa_types import UInt64
 
 
 def test_memory_vault_integration_verbose():

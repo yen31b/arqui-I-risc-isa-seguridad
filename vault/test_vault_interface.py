@@ -1,11 +1,21 @@
 # test_vault_interface.py
 import sys
 import os
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-if ROOT not in sys.path:
-    sys.path.append(ROOT)
-
+CUR_DIR = os.path.abspath(os.path.dirname(__file__))
+ROOT = os.path.abspath(os.path.join(CUR_DIR, '..'))
+# Quitar el dir actual (vault/) para evitar que 'vault.py' haga sombra al paquete 'vault'
+try:
+    while CUR_DIR in sys.path:
+        sys.path.remove(CUR_DIR)
+except Exception:
+    pass
+# Anteponer la raíz del proyecto
+if ROOT in sys.path:
+    sys.path.remove(ROOT)
+sys.path.insert(0, ROOT)
+# Importar siempre desde el paquete
 from vault.vault_interface import VaultInterface
+
 from isa.isa_types import Vec4x64
 
 def main():
@@ -22,7 +32,7 @@ def main():
 
     # 3. Generar una firma con SGEN
     print(">>> Generando firma con SGEN en KEY_0")
-    state = Vec4x64(1, 2, 3, 4)
+    state = Vec4x64([1, 2, 3, 4])
     sig = vi.execute_vault_operation("SGEN", 0, state=state)
     print("Firma generada:", sig)
 

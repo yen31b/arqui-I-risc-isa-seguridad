@@ -120,8 +120,12 @@ class MemoryStage:
                     if opcode in ('KVL', 'VLOAD'):
                         result = self.vault_if.execute_vault_operation('KVL', slot_idx)
                     elif opcode in ('KVW', 'VSTORE', 'VINIT'):
-                        # value puede venir de operandos o de ex_result
-                        value = ops.get('rs2_val', ex_result.get('result'), ops.get('rs1_val'))
+                        # value puede venir de operandos o de ex_result (priorizar rs2_val)
+                        value = ops.get('rs2_val')
+                        if value is None:
+                            value = ex_result.get('result')
+                        if value is None:
+                            value = ops.get('rs1_val')
                         self.vault_if.execute_vault_operation('KVW', slot_idx, value=value)
                         result = None
                     elif opcode in ('SGEN', 'SIGN', 'KVOP'):

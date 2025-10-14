@@ -5,10 +5,10 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parents[1]
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'pipeline')))
-from isa_definition import encode_instruction, OPCODES
-from pipeline import Pipeline
+
+# Importar usando paquetes raíz
+from isa.isa_definition import encode_instruction, OPCODES
+from pipeline.pipeline import Pipeline
 
 def main():
     print("=== Test Pipeline Simple: ADDI x2 then ADD ===")

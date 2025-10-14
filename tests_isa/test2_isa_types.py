@@ -3,11 +3,12 @@
 
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', 'isa')))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.append(ROOT)
 
-from register_file import register_file
-from isa_types import UInt64, Vec4x64
+from isa.register_file import register_file
+from isa.isa_types import UInt64, Vec4x64
 
 
 def test_write_and_read():
@@ -15,8 +16,7 @@ def test_write_and_read():
     rf.write('R1', UInt64(0x123456789ABCDEF0))
     result = rf.read('R1')
     expected = 0x123456789ABCDEF0
-    print("test_write_and_read:", "PASSED" if result ==
-          expected else f"FAILED (got {result})")
+    print("test_write_and_read:", "PASSED" if int(result) == expected else f"FAILED (got {result})")
 
 
 def test_masking():
@@ -24,19 +24,18 @@ def test_masking():
     rf.write('R2', UInt64(0x1FFFFFFFFFFFFFFFF))
     result = rf.read('R2')
     expected = 0xFFFFFFFFFFFFFFFF
-    print("test_masking:", "PASSED" if result ==
-          expected else f"FAILED (got {result})")
+    print("test_masking:", "PASSED" if int(result) == expected else f"FAILED (got {result})")
 
 
 def test_vec4x64_xor():
     rf = register_file()
-    state = Vec4x64(0xA, 0xB, 0xC, 0xD)
+    state = Vec4x64([0xA, 0xB, 0xC, 0xD])
     key = UInt64(0xFF00FF00FF00FF00)
     signed = state.xor_with_key(key)
     passed = True
     for i in range(4):
         rf.write(f'R{i}', signed[i])
-        if rf.read(f'R{i}') != signed[i]:
+        if int(rf.read(f'R{i}')) != int(signed[i]):
             passed = False
             print(f"test_vec4x64_xor: FAILED at R{i}")
     if passed:

@@ -10,6 +10,7 @@ if ROOT not in sys.path:
 
 from compiler.isa_assembler.loader import select_file, _build_boot_image_from_bytes
 from compiler.isa_assembler.loader import dump_signed_file
+from compiler.isa_assembler.loader import load_file_into_memory
 from pipeline.memory_stage import DataMemory, set_boot_image
 from compiler.isa_assembler.assembler import Assembler
 from pipeline.pipeline import Pipeline
