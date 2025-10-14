@@ -1,3 +1,49 @@
+## Probar el flujo completo con `tests/test_loader.py`
+
+Para probar el flujo completo del programa, se utiliza el script de test_loader.py.
+
+1. Se puede ejecutar con el Run desde el editor de codigo, o bien desde terminal con el comando del  `python -m tests.test_loader`.
+2. Se selecciona el archivo binario para firmar. El loader lo convierte a bloques de 64 bits, aplica padding y reubica los datos para no invadir `VAULT_ADDR_RANGE`.
+3. El script registra la boot image resultante (`set_boot_image`) y crea un `Pipeline` ensamblando `Assembly\hast.s`. Si falta ese archivo, el test se detiene.
+4. Elige modo normal o debug. En modo debug puedes inspeccionar memoria (bloques, hash, firma) y registros en cada paso del pipeline.
+5. Al finalizar se genera un archivo firmado junto al original (`<nombre>.signed.<ext>`), además de un dump hexadecimal de apoyo. También imprime el hash y la firma cargados en memoria y corre `VERIFY` dentro de la bóveda (slot 0) para confirmar que la firma coincide.
+
+
+---
+## Cobertura de pruebas por cada módulo
+
+Cada bloque del proyecto tiene pruebas para verificar la funcionalidad por separado de cada modulo.
+
+- `compiler/isa_assembler`: ver `compiler/tests/test_*.py` para validar parsing, generación de hex y ensamblado.
+- `isa`: las definiciones en `isa/` se ejercitan desde los tests del ensamblador y cualquier cambio debe acompañarse con un nuevo `test_*.py` en `compiler/tests`.
+- `pipeline`: el flujo completo se verifica con `tests/test_loader.py`, que levanta el pipeline con la boot image generada por el loader.
+- Utilidades adicionales: `tests/test_loader_beta.py` cubre escenarios alternativos del loader e integra memoria y bóveda.
+
+
+# Prueba de solamente el compilador para Ensamblador de ISA definido
+
+`compiler/isa_assembler` es el archivo que realiza la lectura del archivo ASM, compila usando la definición de ISA (`isa/`). 
+
+Para ensamblar un programa se puede hacer por estos comandos:
+
+```Comandos para compilar 
+
+python -m compiler.isa_assembler.cli ruta\al\programa.asm -f hex --emit-address
+
+Para compilar y generar el .txt:
+
+python -m compiler.isa_assembler.cli ruta\al\programa.asm --format hex -o programa.txt
+
+```
+
+La herramienta entiende etiquetas, saltos, modos de direccionamiento y
+operaciones especiales (bóveda, hash) usando los valores declarados en
+`isa_definition.py`. El comando de ayuda `python -m compiler.isa_assembler.cli -h`
+describe las opciones disponibles.
+
+---
+
+
 # 🟩 Instruction Reference Sheet (Green Card)
 
 ## 📌 Registros
@@ -183,26 +229,5 @@
 - Configuración: si `vault_if is None` y `use_boveda == True` → `RuntimeError`.  
 - `MemoryStage` debe devolver `vault_accessed` explícito y `DataMemory` debe incrementar `security_blocks` cuando bloquea accesos.
 
----
-# Ensamblador de ISA definido
 
-`compiler/isa_assembler` es el archivo que realiza la lectura del archivo ASM, compila usando la definición de ISA (`isa/`). 
 
-Para ensamblar un programa se puede hacer por estos comandos:
-
-```Comandos para compilar 
-
-python -m compiler.isa_assembler.cli ruta\al\programa.asm -f hex --emit-address
-
-Para compilar y generar el .txt:
-
-python -m compiler.isa_assembler.cli ruta\al\programa.asm --format hex -o programa.txt
-
-```
-
-La herramienta entiende etiquetas, saltos, modos de direccionamiento y
-operaciones especiales (bóveda, hash) usando los valores declarados en
-`isa_definition.py`. El comando de ayuda `python -m compiler.isa_assembler.cli -h`
-describe las opciones disponibles.
-
----
