@@ -1,14 +1,14 @@
-
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', 'isa')))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.append(ROOT)
 
 
 import unittest
-from hash_accel import mixmul, modadd, nonlin, apply_block
-from isa_definition import TOYMDMA_CONSTANTS
-from isa_types import Vec4x64, UInt64
+from isa.hash_accel import mixmul, modadd, nonlin, apply_block
+from isa.isa_definition import TOYMDMA_CONSTANTS
+from isa.isa_types import Vec4x64, UInt64
 
 MASK64 = 0xFFFFFFFFFFFFFFFF
 
@@ -37,7 +37,7 @@ class TestHashAccel(unittest.TestCase):
         self.assertEqual(int(r), int(nonlin(x)))
 
     def test_apply_block_updates_state(self):
-        st = Vec4x64(0x1, 0x2, 0x3, 0x4)
+        st = Vec4x64([0x1, 0x2, 0x3, 0x4])
         new_st = apply_block(st, 0xCAFEBABEDEADBEEF)
         self.assertIsInstance(new_st, Vec4x64)
         # componentes deben ser UInt64 y distintos (en la mayoría de casos) del estado original
@@ -48,10 +48,8 @@ class TestHashAccel(unittest.TestCase):
         self.assertTrue(changed)
 
 #  Nuevas pruebas para instrucciones CALC_F, CALC_G, CALC_H
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', 'pipeline')))
-from execute_stage import ExecuteStage
-from register_file import register_file
+from pipeline.execute_stage import ExecuteStage
+from isa.register_file import register_file
 
 class TestCalcInstructions(unittest.TestCase):
     def setUp(self):
@@ -79,7 +77,7 @@ class TestCalcInstructions(unittest.TestCase):
         C = 0xEEEEEEEEFFFFFFFF
         expected = (A & B) ^ (A & C)
         result = self.exec_stage.execute(instr)['result']
-        self.assertEqual(result, expected)
+        self.assertEqual(int(result), expected)
 
     def test_calc_g(self):
         instr = {
@@ -95,7 +93,7 @@ class TestCalcInstructions(unittest.TestCase):
         D = 0x123456789ABCDEF0
         expected = (B & C) ^ (~B & D)
         result = self.exec_stage.execute(instr)['result']
-        self.assertEqual(result & MASK64, expected & MASK64)
+        self.assertEqual(int(result) & MASK64, expected & MASK64)
 
     def test_calc_h(self):
         instr = {
@@ -112,7 +110,7 @@ class TestCalcInstructions(unittest.TestCase):
         D = 0x123456789ABCDEF0
         expected = A ^ B ^ C ^ D
         result = self.exec_stage.execute(instr)['result']
-        self.assertEqual(result, expected)
+        self.assertEqual(int(result), expected)
 
     def test_update_a(self):
         # A = rol64(A + f + mul, 7) + B
@@ -246,4 +244,3 @@ class TestCalcInstructions(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-   
