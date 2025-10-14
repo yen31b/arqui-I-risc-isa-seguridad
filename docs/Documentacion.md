@@ -54,7 +54,7 @@ Se puede acceder en [`docs/green_card.md`](./green_card.md)
 
 ### 2.1 Diagrama de bloques y componentes
 
-![Diagrama de Bloques](microarquitectura.png)
+![Diagrama de Bloques]((https://raw.githubusercontent.com/yen31b/images-yen/refs/heads/main/diagbloques.jpg))
 
 **Componentes principales:**
 - **Fetch Stage:** Recupera la instrucción de la memoria de instrucciones utilizando el Program Counter (PC).
