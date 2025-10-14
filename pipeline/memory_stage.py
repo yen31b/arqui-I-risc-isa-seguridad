@@ -94,6 +94,18 @@ class MemoryStage:
                 # EX ya interactuó con la bóveda; tomar resultado y latencia de EX
                 result = ex_result.get('result')
                 latency = ex_result.get('latency', 1)
+                # Si fue SGEN/SIGN y tenemos la firma (Vec4x64), persistirla en memoria:
+                if opcode in ('SGEN', 'SIGN') and isinstance(result, Vec4x64):
+                    try:
+                        count = int(self.mem.memory.get(0, 0))
+                        blocks_base = int(self.mem.memory.get(8, 0))
+                        hash_base = blocks_base + count * 8
+                        sig_base = hash_base + 32
+                        for i, comp in enumerate(list(result)):
+                            self.mem.write(sig_base + i * 8, int(comp))
+                        print(f"  💾 MEM: Firma (EX) guardada en 0x{sig_base:04x}..0x{sig_base+31:04x}")
+                    except Exception as se:
+                        print(f"  ⚠️  MEM: No se pudo guardar firma (EX) en memoria: {se}")
                 print(f"  🔧 MEM: Operación de bóveda ya ejecutada en EX (skip MEM). slot={slot_idx} result={result}")
                 # No incrementamos vault_accesses en DataMemory porque la ejecución fue en EX
             else:
@@ -116,6 +128,19 @@ class MemoryStage:
                         # usar el resultado de EX (por ejemplo el estado hash) o los operandos
                         state = ex_result.get('result') or ops.get('hash_state')
                         result = self.vault_if.execute_vault_operation('SGEN' if opcode in ('SGEN','SIGN') else 'KVOP', slot_idx, state=state, value=ops.get('rs1_val'))
+                        # Si se generó una firma (Vec4x64), almacenarla al final del archivo: sig_base = blocks_base + count*8 + 32
+                        if opcode in ('SGEN', 'SIGN') and isinstance(result, Vec4x64):
+                            try:
+                                count = int(self.mem.memory.get(0, 0))
+                                blocks_base = int(self.mem.memory.get(8, 0))
+                                hash_base = blocks_base + count * 8
+                                sig_base = hash_base + 32
+                                comps = list(result)
+                                for i, comp in enumerate(comps):
+                                    self.mem.write(sig_base + i * 8, int(comp))
+                                print(f"  💾 MEM: Firma guardada en 0x{sig_base:04x}..0x{sig_base+31:04x}")
+                            except Exception as se:
+                                print(f"  ⚠️  MEM: No se pudo guardar firma en memoria: {se}")
                     else:
                         # delegar genérico
                         result = self.vault_if.execute_vault_operation(opcode, slot_idx, value=ex_result.get('result'))
@@ -149,6 +174,18 @@ class MemoryStage:
                 result = ex_result.get('result')
                 latency = ex_result.get('latency', 1)
                 print(f"  🔧 MEM: Propagando resultado de EX: {result}")
+                # Si es HASH_FINAL y devolvió Vec4x64, guardar hash al final del archivo: hash_base = blocks_base + count*8
+                if opcode == 'HASH_FINAL' and isinstance(result, Vec4x64):
+                    try:
+                        count = int(self.mem.memory.get(0, 0))
+                        blocks_base = int(self.mem.memory.get(8, 0))
+                        hash_base = blocks_base + count * 8
+                        comps = list(result)
+                        for i, comp in enumerate(comps):
+                            self.mem.write(hash_base + i * 8, int(comp))
+                        print(f"  💾 MEM: Hash guardado en 0x{hash_base:04x}..0x{hash_base+31:04x}")
+                    except Exception as he:
+                        print(f"  ⚠️  MEM: No se pudo guardar hash en memoria: {he}")
 
         self.metrics['operations'] += 1
         self.metrics['cycles'] += latency

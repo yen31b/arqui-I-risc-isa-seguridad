@@ -9,10 +9,12 @@ if ROOT not in sys.path:
     sys.path.append(ROOT)
 
 from compiler.isa_assembler.loader import select_file, _build_boot_image_from_bytes
+from compiler.isa_assembler.loader import dump_signed_file
 from pipeline.memory_stage import DataMemory, set_boot_image
 from compiler.isa_assembler.assembler import Assembler
 from pipeline.pipeline import Pipeline
 from isa.isa_definition import VAULT_ADDR_RANGE
+from isa.isa_types import Vec4x64, UInt64
 
 
 class LoaderIntegrationTests(unittest.TestCase):
@@ -142,8 +144,55 @@ class LoaderIntegrationTests(unittest.TestCase):
         print(f"  - Header en 0x0000/0x0008; blocks_base={_fmt64(int(blocks_base))}")
         print("  - Verifica que R24/R21 hayan sido leídos en hast.s y que HASH_FINAL actualice R20..R23.")
 
+    def test_signed_file_dump(self):
+        # Probar volcado de archivo firmado
+        data = b'\x01\x02\x03\x04' * 4  # 32 bytes
+        path = self._write_temp_file(data)
+
+        info = load_file_into_memory(self.mem, path=path, header_base=0, endian='big')
+        blocks_base = info['blocks_base']
+
+        # Escribir algo en la memoria para firmar
+        self.mem.memory[blocks_base] = 0x1122334455667788
+
+        # Volcar archivo firmado
+        base, ext = os.path.splitext(path)
+        signed_path = f"{base}.signed{ext}"
+        dump_signed_file(self.mem, signed_path, header_base=0, endian='big', include_hash=True)
+
+        # Leer el archivo firmado y verificar contenido
+        with open(signed_path, 'rb') as f:
+            signed_data = f.read()
+
+        # El archivo firmado debe comenzar con el hash y luego los datos
+        expected_prefix = b'\x88\x77\x66\x55\x44\x33\x22\x11'  # hash de 8 bytes
+        self.assertTrue(signed_data.startswith(expected_prefix))
+
+        os.remove(path)
+        os.remove(signed_path)
+
 def _fmt64(x: int) -> str:
     return f"0x{x:016X}"
+
+def _read_vec4_from_mem(dm: DataMemory, base: int) -> Vec4x64:
+    vals = [int(dm.memory.get(base + i*8, 0)) for i in range(4)]
+    return Vec4x64(vals)
+
+def _dump_signed_hex_file(bin_path: str, hex_path: str, max_bytes: int = 256):
+    try:
+        with open(bin_path, "rb") as f:
+            data = f.read()
+        with open(hex_path, "w", encoding="utf-8") as h:
+            h.write(f"# Hex dump de {os.path.basename(bin_path)} ({len(data)} bytes)\n")
+            h.write("# Offset: 16 bytes por línea\n")
+            for off in range(0, min(len(data), max_bytes), 16):
+                chunk = data[off:off+16]
+                h.write(f"{off:08x}: " + " ".join(f"{b:02x}" for b in chunk) + "\n")
+            if len(data) > max_bytes:
+                h.write(f"... ({len(data)-max_bytes} bytes omitidos)\n")
+        print(f"[test_loader] Hex dump escrito en: {hex_path}")
+    except Exception as e:
+        print(f"[test_loader] ⚠️ No se pudo escribir hex dump: {e}")
 
 def _dump_memory(dm: DataMemory, *, header_base: int = 0, max_blocks: int = 8):
     count = dm.memory.get(header_base, 0)
@@ -271,6 +320,39 @@ def main():
     print(f"  - Bloques cargados: {int(count)}")
     print(f"  - Header en 0x0000/0x0008; blocks_base={_fmt64(int(blocks_base))}")
     print("  - Verifica que R24/R21 hayan sido leídos en hast.s y que HASH_FINAL actualice R20..R23.")
+
+    # Volcar archivo firmado junto al original
+    try:
+        base, ext = os.path.splitext(path)
+        out_path = f"{base}.signed{ext or ''}"
+        dump_signed_file(p.data_mem, out_path, header_base=0, endian="big", include_hash=True)
+        print(f"[test_loader] Archivo firmado escrito en: {out_path}")
+
+        # Crear un dump .hex para inspección humana
+        hex_path = f"{base}.signed{ext or ''}.hex"
+        _dump_signed_hex_file(out_path, hex_path, max_bytes=256)
+
+        # Verificación programática de la firma usando la bóveda
+        mem = p.data_mem.memory
+        cnt = int(mem.get(0, 0))
+        bbase = int(mem.get(8, 0))
+        hash_base = bbase + cnt * 8
+        sig_base = hash_base + 32
+        hash_vec = _read_vec4_from_mem(p.data_mem, hash_base)
+        sig_vec = _read_vec4_from_mem(p.data_mem, sig_base)
+        print("\n[test_loader] Hash (memoria) y firma (memoria):")
+        for i, name in enumerate(("A","B","C","D")):
+            hv = int(hash_vec[i]); sv = int(sig_vec[i])
+            print(f"  H[{name}] = {_fmt64(hv)}   S[{name}] = {_fmt64(sv)}")
+
+        # Usar slot 0 (KEY_0) inicializado por el Pipeline para verificar
+        verified = bool(p.vault_if.execute_vault_operation('VERIFY', 0, state=hash_vec, signature=sig_vec))
+        print(f"\n[test_loader] Resultado VERIFY (KEY_0 vs hash_mem y sig_mem): {'OK' if verified else 'FAIL'}")
+        if not verified:
+            print("  ⚠️ Si falla, confirma que KEY_0 está inicializada y que SGEN usó el mismo slot.")
+
+    except Exception as e:
+        print(f"[test_loader] ⚠️ No se pudo generar archivo firmado: {e}")
 
 if __name__ == "__main__":
     main()

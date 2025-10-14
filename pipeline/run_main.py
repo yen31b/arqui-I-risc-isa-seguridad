@@ -23,6 +23,7 @@ from typing import List
 
 from compiler.isa_assembler.assembler import Assembler
 from compiler.isa_assembler.loader import load_file_into_memory
+from compiler.isa_assembler.loader import dump_signed_file
 from pipeline.pipeline import Pipeline
 
 def parse_hex_program(path: str) -> List[int]:
@@ -64,6 +65,7 @@ def main():
     ap.add_argument("--endian", choices=["big", "little"], default="big", help="Endian para bloques de datos (loader)")
     ap.add_argument("--batch", action="store_true", help="Ejecutar hasta el final sin modo interactivo")
     ap.add_argument("--verbose", action="store_true", help="Imprimir información adicional")
+    ap.add_argument("--dump-signed-out", help="Ruta de salida para volcar archivo firmado (concat original+[hash]+firma)")
 
     args = ap.parse_args()
 
@@ -118,6 +120,13 @@ def main():
     else:
         # Modo interactivo del pipeline
         p.run()
+
+    # 5) (Opcional) Volcar archivo firmado a disco si se indicó
+    if args.dump_signed_out:
+        try:
+            dump_signed_file(p.data_mem, args.dump_signed_out, header_base=args.header_base, endian=args.endian, include_hash=True)
+        except Exception as e:
+            print(f"[run_main] ⚠️ No se pudo volcar archivo firmado: {e}")
 
 if __name__ == "__main__":
     main()

@@ -218,6 +218,43 @@ def assemble_and_load_into_datamemory(assembler, data_memory, asm_path: str, *, 
         data_memory.write(chosen_blocks_base + i * 8, w)
     return {'header_base': header_base, 'blocks_base': chosen_blocks_base, 'count': len(blocks)}
 
+def dump_signed_file(data_memory, out_path: str, *, header_base: int = 0, endian: str = "big", include_hash: bool = True) -> str:
+    """
+    Vuelca a disco el archivo original almacenado en DataMemory más los anexos:
+      - Hash (32 bytes) si include_hash=True en [blocks_base + count*8 .. +31]
+      - Firma (32 bytes) en [blocks_base + count*8 + 32 .. +63]
+    Retorna la ruta escrita.
+    """
+    vault_lo, vault_hi = VAULT_ADDR_RANGE
+    mem = getattr(data_memory, "memory", {})
+    count = int(mem.get(header_base, 0))
+    blocks_base = int(mem.get(header_base + 8, 0))
+    if count <= 0 or blocks_base == 0:
+        raise RuntimeError("Header incompleto en DataMemory (count/blocks_base).")
+    def w64(addr: int) -> int:
+        return int(mem.get(addr, 0)) & 0xFFFFFFFFFFFFFFFF
+    # Serializar bloques originales
+    out = bytearray()
+    for i in range(count):
+        addr = blocks_base + i * 8
+        if vault_lo <= addr <= vault_hi:
+            raise PermissionError(f"Bloque en VAULT_ADDR_RANGE: 0x{addr:04x}")
+        out += w64(addr).to_bytes(8, endian)
+    # Anexos: hash y firma
+    hash_base = blocks_base + count * 8
+    sig_base = hash_base + 32
+    if include_hash:
+        for i in range(4):
+            out += w64(hash_base + i * 8).to_bytes(8, endian)
+    for i in range(4):
+        out += w64(sig_base + i * 8).to_bytes(8, endian)
+    # Escribir a disco
+    os.makedirs(os.path.dirname(out_path), exist_ok=True) if os.path.dirname(out_path) else None
+    with open(out_path, "wb") as fh:
+        fh.write(out)
+    print(f"[Loader] Archivo firmado volcado a: {out_path} ({len(out)} bytes)")
+    return out_path
+
 if __name__ == "__main__":
     # Al ejecutarse: seleccionar archivo, construir boot image y registrarla globalmente.
     try:
