@@ -121,6 +121,48 @@ class ExecuteStage:
                     result = None
                     latency = 5
 
+                elif opcode == 'VERIFY':
+                    # Construir estado (hash) como Vec4x64
+                    state = ops.get('hash_state')
+                    if state is None:
+                        # intentar R4..R7
+                        try:
+                            s_vec = Vec4x64([self.rf.read('R4'), self.rf.read('R5'), self.rf.read('R6'), self.rf.read('R7')])
+                        except Exception:
+                            s_vec = None
+                        # si parece cero y hay rs1 (base de firma), deducir state_base = rs1 - 4
+                        def _is_zero_vec(v):
+                            try:
+                                return all(int(v[i]) == 0 for i in range(4))
+                            except Exception:
+                                return False
+                        if (s_vec is None or _is_zero_vec(s_vec)) and ('rs1' in ops and ops['rs1'] is not None):
+                            try:
+                                base = max(int(ops['rs1']) - 4, 0)
+                                s_alt = Vec4x64([self.rf.read(f"R{base + i}") for i in range(4)])
+                                state = s_alt
+                                print(f"  🔧 EX: VERIFY(using vault) state R{base}..R{base+3} = {state}")
+                            except Exception:
+                                state = s_vec
+                        else:
+                            state = s_vec
+                    # Construir firma (signature) como Vec4x64
+                    sig = ops.get('signature')
+                    if sig is None and 'rs1' in ops and ops['rs1'] is not None:
+                        try:
+                            base_sig = int(ops['rs1'])
+                            sig = Vec4x64([self.rf.read(f"R{base_sig + i}") for i in range(4)])
+                            print(f"  🔧 EX: VERIFY(using vault) signature R{base_sig}..R{base_sig+3} = {sig}")
+                        except Exception:
+                            sig = None
+                    verified = False
+                    try:
+                        verified = bool(self.vault_if.execute_vault_operation('VERIFY', slot_idx, state=state, signature=sig))
+                    except Exception:
+                        verified = False
+                    result = UInt64(1 if verified else 0)
+                    latency = 6
+
                 else:
                     # fallback: delegar con el nombre de opcode
                     result = self.vault_if.execute_vault_operation(opcode, slot_idx, value=ops.get('rs1_val'))
@@ -358,6 +400,39 @@ class ExecuteStage:
             latency = 1
             print(f"  🔧 EX: SHIFTR {a_val} >> {shift} = {result}")
 
+        # --- Nuevas: UPDATE_A/B/C/D (usando funct = (rs3<<5) | rs4) ---
+        elif opcode in ('UPDATE_A', 'UPDATE_B', 'UPDATE_C', 'UPDATE_D'):
+            self._require_rf(opcode)
+            MASK64 = 0xFFFFFFFFFFFFFFFF
+            # funct codifica dos registros: rs3 y rs4 (5 bits cada uno)
+            rs3rs4 = int(ops.get('funct', 0))
+            rs3_idx = (rs3rs4 >> 5) & 0x1F
+            rs4_idx = rs3rs4 & 0x1F
+            v3 = int(self.rf.read(f"R{rs3_idx}"))
+            v4 = int(self.rf.read(f"R{rs4_idx}"))
+            # temp = rs1_val + rs2_val + rs3
+            temp = (a_val + b_val + v3) & MASK64
+            # rotación según la instrucción
+            rot_map = {
+                'UPDATE_A': 7,
+                'UPDATE_B': 11,
+                'UPDATE_C': 17,
+                'UPDATE_D': 19,
+            }
+            r = rot_map[opcode]
+            rot = ((temp << r) | (temp >> (64 - r))) & MASK64
+            if opcode == 'UPDATE_A':
+                res = (rot + v4) & MASK64
+            elif opcode == 'UPDATE_B':
+                res = (rot + (v4 * 3)) & MASK64
+            elif opcode == 'UPDATE_C':
+                prime = TOYMDMA_CONSTANTS.get('PRIME_MOD', 0xFFFFFFFFFFFFFFFF)
+                res = (rot + (v4 % int(prime))) & MASK64
+            else:  # UPDATE_D
+                res = (rot ^ (v4 * 5)) & MASK64
+            result = UInt64(res)
+            latency = 3
+            print(f"  🔧 EX: {opcode} -> {result} (rs3=R{rs3_idx}, rs4=R{rs4_idx})")
         # Mezclas no lineales personalizadas (requieren rf)
         elif opcode == 'CALC_F':
             self._require_rf(opcode)
@@ -413,22 +488,52 @@ class ExecuteStage:
                 raise RuntimeError("VaultInterface no configurada para VERIFY")
             # slot index puede venir como vault_idx o en funct
             slot_idx = ops.get('vault_idx', ops.get('funct'))
-            # estado (hash) preferible en 'hash_state' o en registros R4..R7
+            # 1) Construir estado (hash) como Vec4x64
             state = ops.get('hash_state')
             if state is None:
-                # construir desde registros si no viene precompuesto
+                # a) Fallback a R4..R7
                 try:
-                    state = Vec4x64([self.rf.read('R4'), self.rf.read('R5'), self.rf.read('R6'), self.rf.read('R7')])
+                    s_vec = Vec4x64([self.rf.read('R4'), self.rf.read('R5'), self.rf.read('R6'), self.rf.read('R7')])
                 except Exception:
-                    state = None
-            # firma puede venir en rs1_val o en 'signature'
-            sig = ops.get('rs1_val', ops.get('signature', None))
+                    s_vec = None
+                # b) Si R4..R7 parecen nulos y tenemos rs1 (base de firma), deducir state_base = rs1 - 4 (patrón SGEN→VERIFY)
+                def _is_zero_vec(v):
+                    try:
+                        return all(int(v[i]) == 0 for i in range(4))
+                    except Exception:
+                        return False
+                if (s_vec is None or _is_zero_vec(s_vec)) and ('rs1' in ops and ops['rs1'] is not None):
+                    try:
+                        base = max(int(ops['rs1']) - 4, 0)
+                        s_alt = Vec4x64([self.rf.read(f"R{base + i}") for i in range(4)])
+                        state = s_alt
+                        print(f"  🔧 EX: VERIFY usando state deducido R{base}..R{base+3} = {state}")
+                    except Exception:
+                        state = s_vec
+                else:
+                    state = s_vec
+            # 2) Construir firma (signature) como Vec4x64
+            sig = ops.get('signature')
+            if sig is None:
+                # si no vino precompuesta, intentamos desde rs1 base
+                if 'rs1' in ops and ops['rs1'] is not None:
+                    try:
+                        base_sig = int(ops['rs1'])
+                        sig = Vec4x64([self.rf.read(f"R{base_sig + i}") for i in range(4)])
+                        print(f"  🔧 EX: VERIFY leyendo signature R{base_sig}..R{base_sig+3} = {sig}")
+                    except Exception:
+                        sig = None
+                # último recurso: repetir componente (menos ideal, pero evita excepciones)
+                if sig is None and 'rs1_val' in ops:
+                    v = int(ops['rs1_val'])
+                    sig = Vec4x64([v, v, v, v])
+                    print("  🔧 EX: VERIFY signature desde rs1_val (repetido)")
+
             # delegar verificación a la interfaz de bóveda
             verified = False
             try:
                 verified = bool(self.vault_if.execute_vault_operation('VERIFY', slot_idx, state=state, signature=sig))
             except Exception as e:
-                # tratar como no verificado si falla
                 verified = False
             result = UInt64(1 if verified else 0)
             latency = 6

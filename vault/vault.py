@@ -13,7 +13,7 @@ Auditoría:
  - Contadores de reads/writes/ops/violations.
  - Cada intento inválido incrementa 'violations'.
 """
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from isa.isa_types import UInt64, Vec4x64
 from isa.isa_definition import VAULT_SLOTS  # dict de slots definidos p.ej. {"K0": {}, "K1": {}}
@@ -73,20 +73,33 @@ class KeyVault:
             "violations": 0,
         }
 
+    def _resolve_slot(self, slot: Union[str, int]) -> str:
+        """Acepta nombre ('KEY_0') o índice (0..7) y retorna el nombre canónico."""
+        if isinstance(slot, str):
+            # Validar que el nombre exista en los slots definidos
+            if slot in self._slots:
+                return slot
+            self._counters["violations"] += 1
+            raise VaultAccessError(f"Slot inválido: {slot}")
+        # índice entero → convertir a nombre
+        inv = {idx: name for name, idx in VAULT_SLOTS.items()}
+        if slot in inv:
+            return inv[slot]
+        self._counters["violations"] += 1
+        raise VaultAccessError(f"Slot inválido: {slot}")
+
     def _mask64(self, v) -> UInt64:
         return UInt64(int(v) & 0xFFFFFFFFFFFFFFFF)
 
     def _get_slot_value(self, slot_name: str) -> Optional[UInt64]:
         return self._slots.get(slot_name, None)
 
-    def write_slot(self, slot_name: str, value: int, authorized: bool = False):
+    def write_slot(self, slot_name: Union[str, int], value: int, authorized: bool = False):
         """
         Escribir un valor en la bóveda.
         authorized debe ser True si la escritura viene de una operación KVW autorizada.
         """
-        if slot_name not in self._slots:
-            self._counters["violations"] += 1
-            raise VaultAccessError(f"Slot inválido: {slot_name}")
+        slot_name = self._resolve_slot(slot_name)
 
         if not authorized:
             self._counters["violations"] += 1
@@ -95,15 +108,13 @@ class KeyVault:
         self._slots[slot_name] = self._mask64(value)
         self._counters["writes"] += 1
 
-    def get_handle(self, slot_name: str, operation: str) -> KeyHandle:
+    def get_handle(self, slot_name: Union[str, int], operation: str) -> KeyHandle:
         """
         Devuelve un handle seguro para operar con el slot.
         No expone la llave en claro; el handle sólo permite operaciones controladas.
         Operaciones permitidas: KVL, KVOP, SGEN.
         """
-        if slot_name not in self._slots:
-            self._counters["violations"] += 1
-            raise VaultAccessError(f"Slot inválido: {slot_name}")
+        slot_name = self._resolve_slot(slot_name)
 
         if self._slots[slot_name] is None:
             self._counters["violations"] += 1

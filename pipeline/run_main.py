@@ -101,8 +101,7 @@ def main():
             sys.exit(1)
 
     # 4) Ejecutar pipeline
-    if args.batch:
-        # Ejecutar hasta agotar instrucciones (sin modo interactivo)
+    def run_batch():
         total = len(p.instr_mem.instructions)
         for _ in range(total):
             try:
@@ -115,11 +114,62 @@ def main():
             except Exception as e:
                 print(f"[run_main] ❌ Error durante ejecución: {e}")
                 break
-        # Reporte final
         p._print_final_report()
+    
+    def run_debug_loop():
+        print("\n[run_main] Modo paso-a-paso: comandos:")
+        print("  1 → Avanzar 1 ciclo")
+        print("  2 → Ejecutar hasta el final (salir del modo paso-a-paso)")
+        print("  3 → Mostrar registros actuales")
+        print("  4 → Mostrar DataMemory (dump)")
+        print("  q → Salir del modo paso-a-paso (sin continuar)\n")
+        while True:
+            cmd = input("Opción (1/2/3/4/q): ").strip().lower()
+            if cmd == '1':
+                try:
+                    p.step()
+                except IndexError:
+                    print("[run_main] ✅ Fin de instrucciones.")
+                    p._print_final_report()
+                    break
+                except PermissionError as e:
+                    print(f"[run_main] 🛑 Violación de seguridad: {e}")
+                    break
+                except Exception as e:
+                    print(f"[run_main] ❌ Error durante ejecución: {e}")
+                    break
+            elif cmd == '2':
+                run_batch()
+                break
+            elif cmd == '3':
+                regs = p.rf.dump_registers()
+                print("\n[run_main] Registros actuales:")
+                for name, val in regs.items():
+                    print(f"  - {name}: 0x{val:016x}")
+                print("")
+            elif cmd == '4':
+                print("")
+                p.dump_data_memory()
+                print("")
+            elif cmd == 'q':
+                print("[run_main] Saliendo del modo paso-a-paso.")
+                break
+            else:
+                print("Opción no válida. Ingresa 1/2/3/4/q.")
+
+    # Si --batch -> ejecutar todo; si no, preguntar al usuario cómo quiere ejecutar
+    if args.batch:
+        run_batch()
     else:
-        # Modo interactivo del pipeline
-        p.run()
+        # Preguntar modo al usuario
+        print("\n[run_main] Modo de ejecución disponible:")
+        print("  1 → Ejecutar todo de una vez (batch)")
+        print("  2 → Modo paso-a-paso (ciclo a ciclo, interactivo)\n")
+        choice = input("Selecciona modo (1/2) [default 1]: ").strip() or '1'
+        if choice == '2':
+            run_debug_loop()
+        else:
+            run_batch()
 
     # 5) (Opcional) Volcar archivo firmado a disco si se indicó
     if args.dump_signed_out:

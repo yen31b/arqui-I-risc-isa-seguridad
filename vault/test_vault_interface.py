@@ -1,10 +1,12 @@
 # test_vault_interface.py
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'isa')))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.append(ROOT)
 
-from vault_interface import VaultInterface
-from isa_types import Vec4x64
+from vault.vault_interface import VaultInterface
+from isa.isa_types import Vec4x64
 
 def main():
     vi = VaultInterface()
