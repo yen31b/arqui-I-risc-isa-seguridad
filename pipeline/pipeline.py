@@ -11,7 +11,7 @@ import io
 import contextlib
 
 from vault.vault_interface import VaultInterface
-from isa.isa_definition import INSTRUCTION_FORMAT_DECISION
+from isa.isa_definition import INSTRUCTION_FORMAT_DECISION, TOYMDMA_CONSTANTS, VAULT_SLOTS
 from isa.isa_types import UInt64, Vec4x64
 from isa.register_file import register_file
 from .fetch_stage import InstructionMemory, FetchStage
@@ -28,6 +28,23 @@ class Pipeline:
 
         # Interfaz única de bóveda para todo el pipeline
         self.vault_if = VaultInterface()
+
+        # --- Inicializar IVs de hash en la bóveda (HASH_A..HASH_D) usando constantes --
+        # Evita violaciones cuando HASH_INIT intenta leer los IVs.
+        try:
+            for suffix in ('A', 'B', 'C', 'D'):
+                slot_name = f"HASH_{suffix}"
+                if slot_name in VAULT_SLOTS:
+                    idx = VAULT_SLOTS[slot_name]
+                    const_key = f"INITIAL_{suffix}"
+                    val = TOYMDMA_CONSTANTS.get(const_key)
+                    if val is not None:
+                        # KVW vía VaultInterface escribe el slot (autorizado por VaultInterface)
+                        self.vault_if.execute_vault_operation('KVW', idx, value=val)
+                        print(f"  🔐 PIPELINE: Inicializado slot {slot_name} (idx={idx}) <- 0x{int(val):016x}")
+        except Exception as e:
+            # No bloquear creación de pipeline si algo falla; solo advertir.
+            print(f"  ⚠️ PIPELINE: No se pudieron inicializar IVs en bóveda: {e}")
 
         self.fetch = FetchStage(self.rf, self.instr_mem)
         self.decode = DecodeStage(self.rf)
@@ -87,28 +104,54 @@ class Pipeline:
         self.completed.append({'instr': instr, 'decoded': decoded, 'ex_result': ex_result, 'mem_result': mem_result})
         self.cycle += 1
 
-    # En pipeline.py - CORREGIR el método _read_operands
-
     def _read_operands(self, decoded):
         """Lee operandos desde el banco de registros - MEJORADO"""
         ops = decoded.get('operandos', {})
-        
+
         print(f"  📖 Leyendo operandos para {decoded['opcode_name']}:")
-        
+        opcode = decoded.get('opcode_name')
+
         # Leer valores de registros source
         if 'rs1' in ops and ops['rs1'] is not None:
             reg_name = f"R{ops['rs1']}"
             ops['rs1_val'] = self.rf.read(reg_name)
             print(f"    {reg_name} = {ops['rs1_val']}")
-        
+
         if 'rs2' in ops and ops['rs2'] is not None:
-            reg_name = f"R{ops['rs2']}" 
+            reg_name = f"R{ops['rs2']}"
             ops['rs2_val'] = self.rf.read(reg_name)
             print(f"    {reg_name} = {ops['rs2_val']}")
-        
+
         if 'imm' in ops and ops['imm'] is not None:
             ops['imm'] = ops.get('imm')
             print(f"    imm = {ops['imm']} (0x{ops['imm']:x})")
+
+        # --- Construir Vec4x64 desde registro base para hash/signature ---
+        try:
+            if opcode in ('SGEN', 'SIGN'):
+                # estado hash en rs1 (registro base)
+                if 'rs1' in ops and ops['rs1'] is not None:
+                    base = int(ops['rs1'])
+                    state_vec = Vec4x64([
+                        self.rf.read(f"R{base + i}") for i in range(4)
+                    ])
+                    ops['hash_state'] = state_vec
+                    print(f"    hash_state (R{base}..R{base+3}) = {state_vec}")
+
+            elif opcode == 'VERIFY':
+                # signature en rs1 (registro base)
+                if 'rs1' in ops and ops['rs1'] is not None:
+                    base = int(ops['rs1'])
+                    sig_vec = Vec4x64([
+                        self.rf.read(f"R{base + i}") for i in range(4)
+                    ])
+                    ops['signature'] = sig_vec
+                    # también dejar rs1_val con el primer componente por compatibilidad
+                    ops['rs1_val'] = self.rf.read(f"R{base}")
+                    print(f"    signature (R{base}..R{base+3}) = {sig_vec}")
+        except Exception as e:
+            # No fatal; dejamos que EX/MEM manejen la ausencia del vector
+            print(f"    ⚠️  No se pudo construir Vec4x64 desde registro base: {e}")
 
     def _read_hash_state(self):
         """Lee estado hash en R4..R7 y retorna Vec4x64."""
@@ -221,10 +264,24 @@ class Pipeline:
         print(f"   Ciclos totales: {self.cycle}")
         print(f"   Instrucciones procesadas: {len(self.completed)}")
         mem_metrics = self.memory.get_metrics()
-        print(f"\n🛡️  MÉTRICAS DE SEGURIDAD:")
+        print(f"\n🛡️  MÉTRICAS DE SEGURIDAD (DataMemory):")
         print(f"   - Accesos a memoria: {mem_metrics.get('mem_accesses', 0)}")
-        print(f"   - Accesos a bóveda: {mem_metrics.get('vault_accesses', 0)}")
+        print(f"   - Accesos a bóveda (DataMemory view): {mem_metrics.get('vault_accesses', 0)}")
         print(f"   - Violaciones bloqueadas: {mem_metrics.get('security_blocks', 0)}")
+
+        # Añadir métricas de VaultInterface (si existe)
+        try:
+            if self.vault_if:
+                vrep = self.vault_if.get_security_report()
+                print(f"\n🔐 MÉTRICAS DE BÓVEDA (VaultInterface):")
+                print(f"   - Vault ops (invocaciones): {vrep.get('vault_ops', 0)}")
+                print(f"   - Vault reads: {vrep.get('vault_reads', 0)}")
+                print(f"   - Vault writes: {vrep.get('vault_writes', 0)}")
+                print(f"   - Vault atomic ops: {vrep.get('atomic_operations', 0)}")
+                print(f"   - Vault violations: {vrep.get('vault_violations', vrep.get('security_violations',0))}")
+        except Exception as e:
+            print(f"   ⚠️  No se pudo obtener reporte de bóveda: {e}")
+
         print(f"\n💾 REGISTROS FINALES (solo no-cero):")
         regs = self.rf.dump_registers()
         non_zero_regs = {k: v for k, v in regs.items() if (k.startswith('R') and v != 0) or k in ['PC', 'SR']}

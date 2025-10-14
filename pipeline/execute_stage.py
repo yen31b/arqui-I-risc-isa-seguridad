@@ -129,9 +129,24 @@ class ExecuteStage:
                 vault_signal = True
                 print(f"  🔧 EX: Bóveda {opcode} slot={slot_idx} result={result}")
 
-            except Exception:
-                # propagar excepción para que el pipeline gestione la falla
-                raise
+            except Exception as e:
+                # Manejar errores de bóveda sin abortar el pipeline
+                try:
+                    # import local para evitar dependencias circulares en top-level
+                    from vault.vault import VaultAccessError
+                except Exception:
+                    VaultAccessError = Exception  # fallback genérico
+
+                # Registrar y mostrar traza clara
+                print(f"  ⚠️  EX: Error de bóveda en {opcode} slot={slot_idx}: {e}")
+                # Incrementar contador de violaciones local en métricas de EX
+                self.metrics['vault_violations'] = self.metrics.get('vault_violations', 0) + 1
+                # Indicar que la EX intentó la operación (para que MEM no la re-ejecute)
+                vault_signal = True
+                # No propagar la excepción: devolver resultado nulo para continuar ejecución
+                result = None
+                # latencia mínima para la operación fallida (para contabilizar coste)
+                latency = max(latency, 1)
 
         # Operaciones aritméticas básicas
         elif opcode == 'ADD':

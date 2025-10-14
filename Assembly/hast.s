@@ -80,4 +80,89 @@ hash_final R8
 
 
 // Firma de documento
-SGEN R12, 0, R8
+SGEN 0, R8, R12
+
+#######################################################################
+# Test: Carga de archivo (loader.py) + HASH_INIT/BLOCK/FINAL
+# Qué prueba:
+#  - Lectura de header y puntero creados por loader.load_file_into_memory
+#  - Recorrido de bloques 64-bit y procesamiento con HASH_BLOCK
+#  - Exportación del hash final con HASH_FINAL a registros consecutivos
+#
+# Cómo ejecutar (dos opciones):
+#  Opción A: cargar datos en DataMemory desde Python antes de correr el pipeline:
+#    from compiler.isa_assembler.loader import load_file_into_memory
+#    p = Pipeline(words)  # lista de instrucciones ensambladas de este .s
+#    load_file_into_memory(p.data_mem, path="ruta/al/archivo.bin", header_base=0)
+#    p.run()  # elige opción "2"
+#
+#  Opción B: si quieres ver solo los bloques en consola:
+#    python -m compiler.isa_assembler.loader  # modo interactivo clásico
+#
+# Estructura en memoria escrita por loader:
+#   - [0x0000]       = count (R24 al cargar)
+#   - [0x0008]       = blocks_base (puntero, R21)
+#   - [blocks_base]  = block0 (UInt64)
+#   - [blocks_base+8]= block1
+#   - ...
+#
+# Resultados esperados al finalizar:
+#   - R24 = count total de bloques
+#   - R21 = puntero blocks_base
+#   - R26 = índice final (== count)
+#   - R20..R23 = hash final exportado por HASH_FINAL (Vec4x64 → R20..R23)
+#   - Revisa reporte final del pipeline para métricas (mem_accesses, etc.)
+#######################################################################
+
+        ############################
+        # 0) Leer header y puntero
+        ############################
+        LOADI   R1, 0                # base del header
+        LOAD    R24, 0(R1)           # R24 = count (número de bloques)
+        LOAD    R21, 8(R1)           # R21 = blocks_base (puntero a primer bloque)
+
+        ############################
+        # 1) Inicializar estado hash
+        ############################
+        HASH_INIT                     # Carga IVs (desde bóveda o constantes)
+
+        ############################
+        # 2) Preparar lazo sobre bloques
+        #    idx en R26, shift=3 en R18 para *8
+        ############################
+        LOADI   R26, 0                # idx = 0
+        LOADI   R18, 3                # multiplicador de 8 (<<3)
+
+loop:
+        # if (idx == count) -> end
+        BEQ     R26, R24, end
+
+        # offset = idx << 3
+        SHIFTL  R27, R26, R18         # R27 = idx * 8
+        # addr = blocks_base + offset
+        ADD     R28, R21, R27         # R28 = dirección del bloque actual
+
+        # Cargar bloque y procesar
+        LOAD    R3, 0(R28)            # R3 = block[idx]
+        HASH_BLOCK R3                  # Actualiza A,B,C,D internamente (R4..R7)
+
+        # idx++
+        ADDI    R26, R26, 1
+        JUMP    loop
+
+end:
+        ############################
+        # 3) Exportar hash final a R20..R23
+        ############################
+        HASH_FINAL R20                 # Escribe Vec4x64 en R20..R23
+
+        #######################################################################
+        # Notas de verificación manual (al terminar la ejecución):
+        # - R24 (count) y R21 (blocks_base) deben coincidir con el loader.
+        # - R26 debe terminar igual que R24 (todos los bloques procesados).
+        # - R20..R23 contienen el hash final (dependiente del archivo cargado).
+        # - En el reporte del pipeline:
+        #    · Accesos a memoria > 0 (por LOAD de los bloques)
+        #    · Accesos a bóveda según HASH_INIT (si leyó IVs de bóveda)
+        #    · Sin violaciones si blocks_base evita VAULT_ADDR_RANGE (loader reubica).
+        #######################################################################

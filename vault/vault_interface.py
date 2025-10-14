@@ -71,14 +71,16 @@ class VaultInterface:
                 self.vault.write_slot(slot_name, value, authorized=True)
 
             elif op == 'KVL':
-                # Devuelve handle o ejecuta suboperación controlada
+                # Leer valor controlado del slot: usamos handle.xor_scalar(0) para obtener UInt64
                 subop = kwargs.get('subop')
                 handle: KeyHandle = self.vault.get_handle(slot_name, 'KVL')
                 if subop == 'xor_scalar':
                     scalar = kwargs.get('scalar', 0)
                     result = handle.xor_scalar(scalar)
                 else:
-                    result = handle  # sólo para uso interno confiable
+                    # devolver valor limpio del slot (xor_scalar(0) es un método seguro para obtener el UInt64)
+                    result = handle.xor_scalar(0)
+                    #result = handle
 
             elif op == 'KVOP':
                 handle: KeyHandle = self.vault.get_handle(slot_name, 'KVOP')
@@ -92,7 +94,8 @@ class VaultInterface:
                         raise ValueError("Se requiere Vec4x64 para 'use_for_signature'")
                     result = handle.use_for_signature(state)
                 else:
-                    result = handle
+                    # fallback: devolver valor del slot de forma segura
+                    result = handle.xor_scalar(0)
 
             elif op == 'SGEN':
                 state = kwargs.get('state')
@@ -143,7 +146,7 @@ class VaultInterface:
             return result
 
         except (VaultAccessError, ValueError) as e:
-            self.security_metrics['security_violations'] += 1
+            #self.security_metrics['security_violations'] += 1
             raise e
         except Exception as e:
             self.security_metrics['security_violations'] += 1

@@ -47,8 +47,8 @@
 | **KVL / VLOAD**  | `KVL rd, vault_idx` | Lee un valor de 64 bits desde la bóveda (devuelve UInt64). (sin exponer llaves a memoria) |
 | **VINIT**        | `VINIT vault_idx, rs1` | Inicializa un slot de bóveda (bootstrap), semántica similar a KVW |
 | **KVOP**         | `KVOP vault_idx, rs1, funct` | Opera sobre el slot usando función interna de bóveda; resultado controlado por VaultInterface |
-| **SGEN / SIGN**  | `SGEN rd, vault_idx, hash_state` | Genera firma digital con la llave privada del slot y el estado hash (A,B,C,D). Devuelve firma 4×UInt64. |
-| **VERIFY**       | `VERIFY rd, vault_idx, firma` | Verifica firma dentro de la bóveda; devuelve flag/booleano. |
+| **SGEN / SIGN**  | `SGEN slot, state_reg [, dst_reg]` | Genera firma digital usando la llave privada del slot y el estado hash (A,B,C,D). Si se especifica dst_reg, la firma (4×UInt64) se escribe en `dst_reg..dst_reg+3`. |
+| **VERIFY**       | `VERIFY slot, signature_reg [, dst_reg]` | Verifica firma dentro de la bóveda; devuelve flag/booleano en `dst_reg` (o como resultado si no se especifica dst_reg). |
 | **VLOAD**        | `VLOAD rd, vault_idx` | Sinónimo/alias de `KVL` (si se usa en el ISA mantener coherencia en decode). |
 
 🔒 **Políticas de seguridad y restricciones**:

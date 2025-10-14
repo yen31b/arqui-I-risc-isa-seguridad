@@ -11,6 +11,16 @@ Responsabilidad:
 from vault.vault_interface import VaultInterface
 from isa.isa_types import UInt64, Vec4x64
 
+# Boot image global para precargar DataMemory al inicio del Pipeline.
+# Formato: dict[int_address] = int_value (64 bits)
+BOOT_IMAGE: dict[int, int] | None = None
+
+def set_boot_image(image: dict[int, int]) -> None:
+    """Configura una imagen de arranque global que será copiada a cada DataMemory nueva."""
+    global BOOT_IMAGE
+    # almacenar copia inmutable (por seguridad)
+    BOOT_IMAGE = {int(k): int(v) for k, v in image.items()}
+
 class DataMemory:
     def __init__(self, size=1024, vault_range=(0x1000, 0x1FFF)):
         self.memory = {}
@@ -20,6 +30,12 @@ class DataMemory:
             'vault_accesses': 0,
             'security_blocks': 0
         }
+        # Precargar boot image si existe (evita validación de rango aquí; se asume segura)
+        if BOOT_IMAGE:
+            # Cargar valores como enteros 64b
+            for addr, val in BOOT_IMAGE.items():
+                self.memory[int(addr)] = int(val)
+            print(f"[DataMemory] Boot image precargada: {len(BOOT_IMAGE)} entradas.")
     
     def validate_memory_access(self, address):
         """Valida que la dirección no esté en rango de bóveda"""
@@ -66,35 +82,50 @@ class MemoryStage:
         
         print(f"  🔧 MEM: Opcode {opcode}, operandos: {list(ops.keys())}")
         
-         # Si la instrucción requiere acceso a la bóveda, delegar a VaultInterface
+        # Si la instrucción requiere acceso a la bóveda, delegar a VaultInterface
         if ctrl.get('use_boveda', False):
             if not self.vault_if:
                 raise RuntimeError("VaultInterface no configurada en MemoryStage para acceso a bóveda")
 
             slot_idx = ops.get('vault_idx')
-            try:
-                # Dependiendo de la instrucción, el EX ya pudo devolver un resultado (p.ej. state)
-                if opcode in ('KVL', 'VLOAD'):
-                    result = self.vault_if.execute_vault_operation('KVL', slot_idx)
-                elif opcode in ('KVW', 'VSTORE', 'VINIT'):
-                    # value puede venir de operandos o de ex_result
-                    value = ops.get('rs2_val', ex_result.get('result'))
-                    self.vault_if.execute_vault_operation('KVW', slot_idx, value=value)
-                    result = None
-                elif opcode in ('SGEN', 'SIGN', 'KVOP'):
-                    # usar el resultado de EX (por ejemplo el estado hash) o los operandos
-                    state = ex_result.get('result') or ops.get('hash_state')
-                    result = self.vault_if.execute_vault_operation('SGEN' if opcode in ('SGEN','SIGN') else 'KVOP', slot_idx, state=state, value=ops.get('rs1_val'))
-                else:
-                    # delegar genérico
-                    result = self.vault_if.execute_vault_operation(opcode, slot_idx, value=ex_result.get('result'))
-                latency = ex_result.get('latency', 1) + 1
-                print(f"  🔧 MEM: Bóveda {opcode} slot={slot_idx} result={result}")
-            except Exception as e:
-                # contabilizar y propagar
-                self.metrics['operations'] += 1
-                self.metrics['cycles'] += 1
-                raise
+
+            # Si EX ya ejecutó la operación de bóveda (vault_signal), NO re-ejecutar aquí.
+            if ex_result.get('vault_signal'):
+                # EX ya interactuó con la bóveda; tomar resultado y latencia de EX
+                result = ex_result.get('result')
+                latency = ex_result.get('latency', 1)
+                print(f"  🔧 MEM: Operación de bóveda ya ejecutada en EX (skip MEM). slot={slot_idx} result={result}")
+                # No incrementamos vault_accesses en DataMemory porque la ejecución fue en EX
+            else:
+                # Contabilizar acceso a bóveda en métricas de DataMemory (vista global)
+                try:
+                    self.mem.metrics['vault_accesses'] = self.mem.metrics.get('vault_accesses', 0) + 1
+                except Exception:
+                    pass
+
+                try:
+                    # Dependiendo de la instrucción, el EX ya pudo devolver un resultado (p.ej. state)
+                    if opcode in ('KVL', 'VLOAD'):
+                        result = self.vault_if.execute_vault_operation('KVL', slot_idx)
+                    elif opcode in ('KVW', 'VSTORE', 'VINIT'):
+                        # value puede venir de operandos o de ex_result
+                        value = ops.get('rs2_val', ex_result.get('result'), ops.get('rs1_val'))
+                        self.vault_if.execute_vault_operation('KVW', slot_idx, value=value)
+                        result = None
+                    elif opcode in ('SGEN', 'SIGN', 'KVOP'):
+                        # usar el resultado de EX (por ejemplo el estado hash) o los operandos
+                        state = ex_result.get('result') or ops.get('hash_state')
+                        result = self.vault_if.execute_vault_operation('SGEN' if opcode in ('SGEN','SIGN') else 'KVOP', slot_idx, state=state, value=ops.get('rs1_val'))
+                    else:
+                        # delegar genérico
+                        result = self.vault_if.execute_vault_operation(opcode, slot_idx, value=ex_result.get('result'))
+                    latency = ex_result.get('latency', 1) + 1
+                    print(f"  🔧 MEM: Bóveda {opcode} slot={slot_idx} result={result}")
+                except Exception as e:
+                    # contabilizar y propagar
+                    self.metrics['operations'] += 1
+                    self.metrics['cycles'] += 1
+                    raise
 
         # Caso: operaciones con memoria
         else:

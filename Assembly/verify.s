@@ -78,9 +78,12 @@ BEQ R25, R26, etiqueta
 // Exporta el estado final
 hash_final R8
 
+// --- Inicializar slot de bóveda con una llave (evitar violaciones por slot no inicializado)
+// usamos R4 (valor cargado por HASH_INIT) como llave de ejemplo
+VINIT   0,   R4        # Inicializa slot 0 con clave en R4 (autorizado)
 
 // Firma de documento
-SGEN R12, 0, R8
+SGEN    0,   R8,   R12        # slot, state_reg, dst_reg  -> firma escrita en R12..R15
 
 // Verificacion
-VERIFY R31, 0, R12
+VERIFY  0,   R12,  R31       # slot, signature_reg, dst_reg  -> resultado (0/1) en R31

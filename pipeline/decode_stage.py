@@ -73,6 +73,23 @@ class DecodeStage:
         
         result['operandos'] = operandos
 
+        # Si la instrucción de firma lleva destino codificado en 'funct',
+        # normalizar a 'rd' y, cuando corresponda (p.ej. H_TYPE), exponer también vault_idx
+        if opcode_name in ('SGEN', 'SIGN', 'VERIFY'):
+            funct_val = operandos.get('funct')
+            if funct_val is not None:
+                try:
+                    f = int(funct_val)
+                    rd_candidate = f & 0x1F
+                    operandos['rd'] = rd_candidate
+                    # Si el formato es H_TYPE (o no existe vault_idx), extraer slot desde los bits altos de funct
+                    if (format_type == 'H_TYPE') and ('vault_idx' not in operandos or operandos.get('vault_idx') in (0, None)):
+                        slot_candidate = (f >> 5)
+                        operandos['vault_idx'] = slot_candidate
+                except Exception:
+                    pass
+                
+
         # Generar señales de control
         control_signals = {
             # 'use_boveda' ahora viene desde la definición centralizada
@@ -97,23 +114,24 @@ class DecodeStage:
         Mapea simple de opcode a formato
         """
         format_map = {
-            # I_TYPE
-            'ADDI': 'I_TYPE', 'ANDI': 'I_TYPE', 'LOAD': 'I_TYPE', 'LOADI': 'I_TYPE',
-            'JUMP': 'I_TYPE', 'JAL': 'I_TYPE',
-            # R_TYPE
-            'ADD': 'R_TYPE', 'SUB': 'R_TYPE', 'AND': 'R_TYPE', 'OR': 'R_TYPE', 
-            'XOR': 'R_TYPE', 'MUL': 'R_TYPE', 'MOD': 'R_TYPE', 'MULMOD': 'R_TYPE',
-            'ROTL': 'R_TYPE', 'ROTR': 'R_TYPE',
-            # Añadidos shifts
-            'SHIFTL': 'R_TYPE', 'SHIFTR': 'R_TYPE',
-            # S_TYPE
-            'STORE': 'S_TYPE', 'BEQ': 'S_TYPE', 'BNE': 'S_TYPE', 'BLT': 'S_TYPE',
-            # V_TYPE
-            'VSTORE': 'V_TYPE', 'VINIT': 'V_TYPE',
-            # H_TYPE
-            'HASH_INIT': 'H_TYPE', 'HASH_BLOCK': 'H_TYPE', 'HASH_FINAL': 'H_TYPE',
-            'SIGN': 'H_TYPE', 'VERIFY': 'H_TYPE'
-        }
+             # I_TYPE
+             'ADDI': 'I_TYPE', 'ANDI': 'I_TYPE', 'LOAD': 'I_TYPE', 'LOADI': 'I_TYPE',
+             'JUMP': 'I_TYPE', 'JAL': 'I_TYPE',
+             # R_TYPE
+             'ADD': 'R_TYPE', 'SUB': 'R_TYPE', 'AND': 'R_TYPE', 'OR': 'R_TYPE', 
+             'XOR': 'R_TYPE', 'MUL': 'R_TYPE', 'MOD': 'R_TYPE', 'MULMOD': 'R_TYPE',
+             'ROTL': 'R_TYPE', 'ROTR': 'R_TYPE',
+             # Añadidos shifts
+             'SHIFTL': 'R_TYPE', 'SHIFTR': 'R_TYPE',
+             # S_TYPE
+             'STORE': 'S_TYPE', 'BEQ': 'S_TYPE', 'BNE': 'S_TYPE', 'BLT': 'S_TYPE',
+             # V_TYPE (instrucciones de bóveda / vault)
+             'VSTORE': 'V_TYPE', 'VINIT': 'V_TYPE',
+             'KVW': 'V_TYPE', 'KVL': 'V_TYPE', 'VLOAD': 'V_TYPE', 'KVOP': 'V_TYPE', 'SGEN': 'V_TYPE',
+             # H_TYPE
+             'HASH_INIT': 'H_TYPE', 'HASH_BLOCK': 'H_TYPE', 'HASH_FINAL': 'H_TYPE',
+             'SIGN': 'H_TYPE', 'VERIFY': 'H_TYPE'
+         }
         
         return format_map.get(opcode_name, 'R_TYPE')  # Por defecto R_TYPE
 

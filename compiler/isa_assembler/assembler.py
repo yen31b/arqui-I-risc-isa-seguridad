@@ -367,26 +367,74 @@ class Assembler:
 
     def _encode_v_type(self, line: ParsedLine, opcode: int) -> int:
         if len(line.operands) not in (2, 3):
-            raise AssemblyError("VSTORE/VINIT esperan 'slot, rs1 [, funct]'", line_no=line.line_no, line_text=line.raw)
+            raise AssemblyError("VSTORE/VINIT/SGEN esperan 'slot, rs1 [, funct|rd]'", line_no=line.line_no, line_text=line.raw)
         slot = self._resolve_vault_slot(line.operands[0], line)
         rs1 = self._parse_register(line.operands[1], line)
         if len(line.operands) == 3:
-            funct = self._resolve_funct(line.operands[2], line)
+            #funct = self._resolve_funct(line.operands[2], line)
+            third = line.operands[2]
+            # Si el tercer operando es un registro válido, interpretarlo como destino (rd)
+            key = third.upper()
+            if key in REGISTER_MAP:
+                rd_idx = REGISTER_MAP[key]
+                funct = rd_idx  # codificamos el índice de registro en el campo funct
+            else:
+                # si no es registro, resolver como funct simbólico o literal (comportamiento previo)
+                funct = self._resolve_funct(third, line)
         else:
             funct = FUNCT_DEFAULTS.get(line.mnemonic, 0)
         return ISA.encode_instruction("V_TYPE", opcode=opcode, vault_idx=slot, rs1=rs1, funct=funct & 0xFFFF)
 
     def _encode_h_type(self, line: ParsedLine, opcode: int) -> int:
-        if len(line.operands) not in (0, 1, 2):
-            raise AssemblyError("Instrucciones HASH/SIGN aceptan hasta dos operandos", line_no=line.line_no, line_text=line.raw)
-        if len(line.operands) >= 1:
-            rs1 = self._parse_register(line.operands[0], line)
-        else:
+        # Soportar formas flexibles:
+        # - HASH_INIT
+        # - HASH_BLOCK rs1
+        # - HASH_FINAL rd
+        # - SGEN slot, state_reg [, dst_reg]
+        # - VERIFY slot, signature_reg [, dst_reg]
+        if len(line.operands) == 0:
             rs1 = 0
-        if len(line.operands) == 2:
-            funct = self._resolve_funct(line.operands[1], line)
-        else:
             funct = FUNCT_DEFAULTS.get(line.mnemonic, 0)
+
+        elif len(line.operands) == 1:
+            # único operando: típicamente rs1 (state reg) o rd según instrucción
+            tok = line.operands[0]
+            # si es registro -> usar como rs1
+            key = tok.upper()
+            if key in REGISTER_MAP:
+                rs1 = self._parse_register(tok, line)
+                funct = FUNCT_DEFAULTS.get(line.mnemonic, 0)
+            else:
+                # si no es registro, interpretarlo como funct literal/simbólico
+                rs1 = 0
+                funct = self._resolve_funct(tok, line)
+
+        elif len(line.operands) == 2:
+            # dos operandos: por ejemplo HASH_BLOCK rs1  o SIGN slot, state_reg
+            first, second = line.operands[0], line.operands[1]
+            # si el primero es slot simbólico/número -> slot, state_reg
+            try:
+                slot = self._resolve_vault_slot(first, line)
+                rs1 = self._parse_register(second, line)
+                # codificar funct con slot en high bits y rd=0 en low bits
+                funct = ((slot & 0xFFFFF) << 5) | (0 & 0x1F)
+            except AssemblyError:
+                # fallback: rs1, funct (según convención anterior)
+                rs1 = self._parse_register(first, line)
+                funct = self._resolve_funct(second, line)
+
+        elif len(line.operands) == 3:
+            # forma explícita: slot, state_reg, dst_reg
+            slot_tok, state_tok, dst_tok = line.operands[0], line.operands[1], line.operands[2]
+            slot = self._resolve_vault_slot(slot_tok, line)
+            rs1 = self._parse_register(state_tok, line)
+            rd_idx = self._parse_register(dst_tok, line)
+            # Codificamos en funct: high bits = slot, low 5 bits = rd index
+            funct = ((slot & 0xFFFFF) << 5) | (rd_idx & 0x1F)
+
+        else:
+            raise AssemblyError("Instrucción HASH/SIGN/VERIFY acepta hasta 3 operandos", line_no=line.line_no, line_text=line.raw)
+
         return ISA.encode_instruction("H_TYPE", opcode=opcode, rs1=rs1, funct=funct & 0x1FFFFF)
 
     # ------------------------------------------------------------------
